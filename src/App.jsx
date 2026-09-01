@@ -17,31 +17,59 @@ const MONTHS = [
   { id: 12, shortEn: 'Dec', shortHi: 'दिसंबर', fullEn: 'December' }
 ];
 
-const REGIONS = {
-  north_plains: {
-    labelHi: 'उत्तरी मैदानी क्षेत्र (UP, Bihar, Punjab, HR)',
-    labelEn: 'North Plains (UP, Bihar, Punjab, HR)',
-    wetBase: 0.54, dryBase: 0.20
-  },
-  coastal_south: {
-    labelHi: 'तटीय एवं दक्षिणी राज्य (Kerala, TN, AP, Goa)',
-    labelEn: 'Coastal & South (Kerala, TN, AP, Goa)',
-    wetBase: 0.62, dryBase: 0.16
-  },
-  western_metro: {
-    labelHi: 'पश्चिमी व मेट्रो क्षेत्र (MH, Gujarat, Delhi NCR)',
-    labelEn: 'Western & Metros (MH, Gujarat, Delhi NCR)',
-    wetBase: 0.48, dryBase: 0.26
-  },
-  hilly_ne: {
-    labelHi: 'पहाड़ी व पूर्वोत्तर क्षेत्र (HP, UK, NE States)',
-    labelEn: 'Hilly & North-East (HP, UK, NE)',
-    wetBase: 0.45, dryBase: 0.28
-  }
+// REGIONAL BASES FOR SWM 2024
+const REGION_PROFILES = {
+  north_plains: { wetBase: 0.54, dryBase: 0.20, nameEn: 'North Plains', nameHi: 'उत्तरी मैदानी क्षेत्र' },
+  coastal_south: { wetBase: 0.62, dryBase: 0.16, nameEn: 'South & Coastal', nameHi: 'दक्षिण एवं तटीय क्षेत्र' },
+  western_central: { wetBase: 0.48, dryBase: 0.26, nameEn: 'West & Central', nameHi: 'पश्चिम एवं मध्य भारत' },
+  eastern_states: { wetBase: 0.56, dryBase: 0.18, nameEn: 'East India', nameHi: 'पूर्वी भारत' },
+  hilly_ne: { wetBase: 0.45, dryBase: 0.28, nameEn: 'Hilly & North-East', nameHi: 'पहाड़ी व पूर्वोत्तर क्षेत्र' },
+  national_avg: { wetBase: 0.52, dryBase: 0.22, nameEn: 'Pan-India Standard', nameHi: 'राष्ट्रीय औसत' }
 };
 
+// ALL 28 STATES + 8 UTs MAPPED TO THEIR GEOGRAPHICAL REGION
+const STATES_LIST = [
+  { nameEn: 'Andaman & Nicobar Islands', nameHi: 'अंडमान और निकोबार', region: 'coastal_south' },
+  { nameEn: 'Andhra Pradesh', nameHi: 'आंध्र प्रदेश', region: 'coastal_south' },
+  { nameEn: 'Arunachal Pradesh', nameHi: 'अरुणाचल प्रदेश', region: 'hilly_ne' },
+  { nameEn: 'Assam', nameHi: 'असम', region: 'hilly_ne' },
+  { nameEn: 'Bihar', nameHi: 'बिहार', region: 'north_plains' },
+  { nameEn: 'Chandigarh', nameHi: 'चंडीगढ़', region: 'north_plains' },
+  { nameEn: 'Chhattisgarh', nameHi: 'छत्तीसगढ़', region: 'western_central' },
+  { nameEn: 'Dadra and Nagar Haveli and Daman and Diu', nameHi: 'दादरा नगर हवेली एवं दमन दीव', region: 'western_central' },
+  { nameEn: 'Delhi (NCR)', nameHi: 'दिल्ली (एनसीआर)', region: 'north_plains' },
+  { nameEn: 'Goa', nameHi: 'गोवा', region: 'coastal_south' },
+  { nameEn: 'Gujarat', nameHi: 'गुजरात', region: 'western_central' },
+  { nameEn: 'Haryana', nameHi: 'हरियाणा', region: 'north_plains' },
+  { nameEn: 'Himachal Pradesh', nameHi: 'हिमाचल प्रदेश', region: 'hilly_ne' },
+  { nameEn: 'Jammu and Kashmir', nameHi: 'जम्मू और कश्मीर', region: 'hilly_ne' },
+  { nameEn: 'Jharkhand', nameHi: 'झारखंड', region: 'eastern_states' },
+  { nameEn: 'Karnataka', nameHi: 'कर्नाटक', region: 'coastal_south' },
+  { nameEn: 'Kerala', nameHi: 'केरल', region: 'coastal_south' },
+  { nameEn: 'Ladakh', nameHi: 'लद्दाख', region: 'hilly_ne' },
+  { nameEn: 'Lakshadweep', nameHi: 'लक्षद्वीप', region: 'coastal_south' },
+  { nameEn: 'Madhya Pradesh', nameHi: 'मध्य प्रदेश', region: 'western_central' },
+  { nameEn: 'Maharashtra', nameHi: 'महाराष्ट्र', region: 'western_central' },
+  { nameEn: 'Manipur', nameHi: 'मणिपुर', region: 'hilly_ne' },
+  { nameEn: 'Meghalaya', nameHi: 'मेघालय', region: 'hilly_ne' },
+  { nameEn: 'Mizoram', nameHi: 'मिजोरम', region: 'hilly_ne' },
+  { nameEn: 'Nagaland', nameHi: 'नागालैंड', region: 'hilly_ne' },
+  { nameEn: 'Odisha', nameHi: 'ओडिशा', region: 'eastern_states' },
+  { nameEn: 'Puducherry', nameHi: 'पुडुचेरी', region: 'coastal_south' },
+  { nameEn: 'Punjab', nameHi: 'पंजाब', region: 'north_plains' },
+  { nameEn: 'Rajasthan', nameHi: 'राजस्थान', region: 'western_central' },
+  { nameEn: 'Sikkim', nameHi: 'सिक्किम', region: 'hilly_ne' },
+  { nameEn: 'Tamil Nadu', nameHi: 'तमिलनाडु', region: 'coastal_south' },
+  { nameEn: 'Telangana', nameHi: 'तेलंगाना', region: 'coastal_south' },
+  { nameEn: 'Tripura', nameHi: 'त्रिपुरा', region: 'hilly_ne' },
+  { nameEn: 'Uttar Pradesh', nameHi: 'उत्तर प्रदेश', region: 'north_plains' },
+  { nameEn: 'Uttarakhand', nameHi: 'उत्तराखंड', region: 'hilly_ne' },
+  { nameEn: 'West Bengal', nameHi: 'पश्चिम बंगाल', region: 'eastern_states' },
+  { nameEn: 'Other / Pan-India Standard', nameHi: 'अन्य / राष्ट्रीय मानक', region: 'national_avg' }
+];
+
 const getSeasonalFractions = (m, type, regionKey) => {
-  const profile = REGIONS[regionKey] || REGIONS.north_plains;
+  const profile = REGION_PROFILES[regionKey] || REGION_PROFILES.north_plains;
   
   if (type === 'ULB') {
     if ([5, 6, 7].includes(m)) return [profile.wetBase + 0.05, profile.dryBase - 0.02, 0.04, 0.02, 0.05, 0.12];
@@ -55,7 +83,7 @@ const inputStyle = { width: '100%', padding: '9px', borderRadius: '6px', border:
 
 export default function App() {
   const [lang, setLang] = useState('hi');
-  const [region, setRegion] = useState('north_plains');
+  const [selectedState, setSelectedState] = useState('Uttar Pradesh');
   const [facilityType, setFacilityType] = useState('ULB');
   const [name, setName] = useState('Nagar Palika Parishad');
   const [population, setPopulation] = useState(150000);
@@ -70,8 +98,13 @@ export default function App() {
   const [activeTabMonth, setActiveTabMonth] = useState(null);
   const [isPaid, setIsPaid] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showStateInfo, setShowStateInfo] = useState(false);
 
   const resultsRef = useRef(null);
+
+  const currentStateObj = STATES_LIST.find(s => s.nameEn === selectedState) || STATES_LIST[33];
+  const currentRegionKey = currentStateObj.region;
+  const currentRegionObj = REGION_PROFILES[currentRegionKey];
 
   const toggleMonth = (mId) => {
     if (selectedMonths.includes(mId)) {
@@ -95,7 +128,7 @@ export default function App() {
         ? (ulbFixedTons > 0 ? parseFloat(ulbFixedTons) : (population * (parseFloat(perCapita) / 1000)) / 1000)
         : parseFloat(mrfDailyDryTons);
 
-      const baseFractions = getSeasonalFractions(m, facilityType, region);
+      const baseFractions = getSeasonalFractions(m, facilityType, currentRegionKey);
       let logs = [];
 
       for (let day = 1; day <= days; day++) {
@@ -112,7 +145,7 @@ export default function App() {
           c2: parseFloat((dailyTotal * norm[1]).toFixed(2)),
           c3: parseFloat((dailyTotal * norm[2]).toFixed(2)),
           c4: parseFloat((dailyTotal * norm[3]).toFixed(2)),
-          c5: parseFloat((dailyTotal * norm[4]).toFixed(2)),
+          c5: parseFloat((dailyTotal * norm[5]).toFixed(2)),
           c6: parseFloat((dailyTotal * norm[5]).toFixed(2)),
           total: parseFloat(dailyTotal.toFixed(2))
         });
@@ -198,7 +231,7 @@ export default function App() {
                 {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लोगबुक जनरेटर (SWM 2024)' : 'ULB & MRF Waste Logbook Generator (SWM 2024)'}
               </h1>
               <p style={{ fontSize: '13px', margin: 0, color: '#a7f3d0' }}>
-                {lang === 'hi' ? '4-स्ट्रीम अपशिष्ट पृथक्कीकरण एवं अखिल भारतीय रीजनल एडजस्टमेंट टूल' : 'Automated 4-Stream Logbook Engine with Pan-India Regional Scaling'}
+                {lang === 'hi' ? '4-स्ट्रीम अपशिष्ट पृथक्कीकरण एवं अखिल भारतीय राज्यवार एडजस्टमेंट टूल' : 'Automated 4-Stream Logbook Engine with Pan-India State-Wise Calibration'}
               </p>
             </div>
             <button onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#047857', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
@@ -219,15 +252,26 @@ export default function App() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '14px' }}>
               
-              {/* STATE / REGION SELECTOR */}
+              {/* ALL STATES DROPDOWN WITH (i) INFO BUTTON */}
               <div>
-                <label style={{ fontSize: '12px', fontWeight: '600', color: '#047857', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <MapPin size={13} /> {lang === 'hi' ? 'राज्य / क्षेत्र चुनें (Region/State)' : 'Select Region / State'}
-                </label>
-                <select style={{ ...inputStyle, border: '1px solid #059669', background: '#f0fdf4' }} value={region} onChange={(e) => setRegion(e.target.value)}>
-                  {Object.keys(REGIONS).map((key) => (
-                    <option key={key} value={key}>
-                      {lang === 'hi' ? REGIONS[key].labelHi : REGIONS[key].labelEn}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#047857', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <MapPin size={13} /> {lang === 'hi' ? 'राज्य चुनें (State)' : 'Select State'}
+                  </label>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowStateInfo(!showStateInfo)} 
+                    style={{ background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center', gap: '2px', fontSize: '12px', fontWeight: 'bold' }}
+                    title="Why choose state?"
+                  >
+                    <Info size={14} /> (i)
+                  </button>
+                </div>
+
+                <select style={{ ...inputStyle, border: '1px solid #059669', background: '#f0fdf4' }} value={selectedState} onChange={(e) => setSelectedState(e.target.value)}>
+                  {STATES_LIST.map((s) => (
+                    <option key={s.nameEn} value={s.nameEn}>
+                      {lang === 'hi' ? s.nameHi : s.nameEn}
                     </option>
                   ))}
                 </select>
@@ -273,6 +317,26 @@ export default function App() {
               </div>
             </div>
 
+            {/* INFO POPUP BOX WHEN (i) IS CLICKED */}
+            {showStateInfo && (
+              <div style={{ background: '#f0f9ff', border: '1px solid #7dd3fc', padding: '10px 14px', borderRadius: '6px', marginBottom: '14px', fontSize: '12px', color: '#0369a1', lineHeight: '1.4' }}>
+                <div style={{ fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <span>ℹ️ {lang === 'hi' ? 'राज्य चयन का महत्व (Relevance of State Selection):' : 'Relevance of Selecting Your State:'}</span>
+                  <button type="button" onClick={() => setShowStateInfo(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0369a1', fontWeight: 'bold' }}>✕</button>
+                </div>
+                <p style={{ margin: '0 0 4px 0' }}>
+                  {lang === 'hi'
+                    ? `आपके द्वारा चुने गए राज्य (${currentStateObj.nameHi}) को ${currentRegionObj.nameHi} क्षेत्र में वर्गीकृत किया गया है।`
+                    : `Selected state (${currentStateObj.nameEn}) is mapped to the ${currentRegionObj.nameEn} zone.`}
+                </p>
+                <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                  <li>{lang === 'hi' ? 'तटीय/दक्षिणी राज्यों में नमी एवं जैविक कचरा अधिक रहता है (~62% Wet Base)।' : 'Coastal & Southern states experience higher humidity and organic fraction (~62% Wet Base).'}</li>
+                  <li>{lang === 'hi' ? 'मेट्रो/पश्चिमी राज्यों में प्लास्टिक व पैकेजिंग अधिक होती है (~26% Dry Base)।' : 'Metro & Western states produce higher packaging/plastic waste (~26% Dry Base).'}</li>
+                  <li>{lang === 'hi' ? 'उत्तरी व पूर्वोत्तर क्षेत्रों में मौसमी तापमान और फलों के उत्पादन के अनुसार गीला कचरा बदलता है।' : 'Northern & NE states scale wet waste dynamically with seasonal fruit harvests and temperature.'}</li>
+                </ul>
+              </div>
+            )}
+
             {/* MONTH SELECTION */}
             <div style={{ marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
@@ -306,7 +370,7 @@ export default function App() {
             <div ref={resultsRef} style={{ background: '#fff', padding: '15px', borderRadius: '8px', border: '1px solid #cbd5e1', scrollMarginTop: '15px' }}>
               
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '10px', borderRadius: '6px', marginBottom: '12px', fontSize: '12px', color: '#1e40af' }}>
-                <strong><Info size={14} style={{ verticalAlign: 'middle' }} /> SWM 2024 Guidance ({REGIONS[region].labelEn}):</strong> 4-Stream segregation applied. Baseline fractions dynamically scaled for selected geographical region.
+                <strong><Info size={14} style={{ verticalAlign: 'middle' }} /> SWM 2024 Guidance ({currentStateObj.nameEn} / {currentRegionObj.nameEn}):</strong> 4-Stream segregation applied. Baseline waste composition calibrated for chosen state profile.
               </div>
 
               {/* TABS */}
@@ -322,7 +386,7 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{name} — {MONTHS.find(m => m.id === activeTabMonth)?.fullEn} {startYear}</span>
+                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{name} ({currentStateObj.nameEn}) — {MONTHS.find(m => m.id === activeTabMonth)?.fullEn} {startYear}</span>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button onClick={() => setDisplayUnit(displayUnit === 'Tons' ? 'kg' : 'Tons')} style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
                     Unit: <strong>{displayUnit}</strong>
