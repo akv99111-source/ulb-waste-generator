@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck } from 'lucide-react';
+import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck, MapPin } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const MONTHS = [
@@ -17,12 +17,36 @@ const MONTHS = [
   { id: 12, shortEn: 'Dec', shortHi: 'दिसंबर', fullEn: 'December' }
 ];
 
-const getSeasonalFractions = (m, type) => {
+const REGIONS = {
+  north_plains: {
+    labelHi: 'उत्तरी मैदानी क्षेत्र (UP, Bihar, Punjab, HR)',
+    labelEn: 'North Plains (UP, Bihar, Punjab, HR)',
+    wetBase: 0.54, dryBase: 0.20
+  },
+  coastal_south: {
+    labelHi: 'तटीय एवं दक्षिणी राज्य (Kerala, TN, AP, Goa)',
+    labelEn: 'Coastal & South (Kerala, TN, AP, Goa)',
+    wetBase: 0.62, dryBase: 0.16
+  },
+  western_metro: {
+    labelHi: 'पश्चिमी व मेट्रो क्षेत्र (MH, Gujarat, Delhi NCR)',
+    labelEn: 'Western & Metros (MH, Gujarat, Delhi NCR)',
+    wetBase: 0.48, dryBase: 0.26
+  },
+  hilly_ne: {
+    labelHi: 'पहाड़ी व पूर्वोत्तर क्षेत्र (HP, UK, NE States)',
+    labelEn: 'Hilly & North-East (HP, UK, NE)',
+    wetBase: 0.45, dryBase: 0.28
+  }
+};
+
+const getSeasonalFractions = (m, type, regionKey) => {
+  const profile = REGIONS[regionKey] || REGIONS.north_plains;
+  
   if (type === 'ULB') {
-    if ([5, 6, 7].includes(m)) return [0.58, 0.18, 0.04, 0.02, 0.05, 0.13];
-    if ([8, 9].includes(m)) return [0.56, 0.19, 0.04, 0.02, 0.05, 0.14];
-    if ([11, 12, 1, 2].includes(m)) return [0.50, 0.23, 0.05, 0.02, 0.06, 0.14];
-    return [0.54, 0.20, 0.04, 0.02, 0.05, 0.15];
+    if ([5, 6, 7].includes(m)) return [profile.wetBase + 0.05, profile.dryBase - 0.02, 0.04, 0.02, 0.05, 0.12];
+    if ([8, 9].includes(m)) return [profile.wetBase + 0.03, profile.dryBase - 0.01, 0.04, 0.02, 0.05, 0.13];
+    return [profile.wetBase, profile.dryBase, 0.04, 0.02, 0.05, 0.15];
   }
   return [5, 6, 7].includes(m) ? [0.25, 0.15, 0.20, 0.22, 0.08, 0.10] : [0.20, 0.15, 0.25, 0.20, 0.10, 0.10];
 };
@@ -31,6 +55,7 @@ const inputStyle = { width: '100%', padding: '9px', borderRadius: '6px', border:
 
 export default function App() {
   const [lang, setLang] = useState('hi');
+  const [region, setRegion] = useState('north_plains');
   const [facilityType, setFacilityType] = useState('ULB');
   const [name, setName] = useState('Nagar Palika Parishad');
   const [population, setPopulation] = useState(150000);
@@ -70,7 +95,7 @@ export default function App() {
         ? (ulbFixedTons > 0 ? parseFloat(ulbFixedTons) : (population * (parseFloat(perCapita) / 1000)) / 1000)
         : parseFloat(mrfDailyDryTons);
 
-      const baseFractions = getSeasonalFractions(m, facilityType);
+      const baseFractions = getSeasonalFractions(m, facilityType, region);
       let logs = [];
 
       for (let day = 1; day <= days; day++) {
@@ -173,7 +198,7 @@ export default function App() {
                 {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लोगबुक जनरेटर (SWM 2024)' : 'ULB & MRF Waste Logbook Generator (SWM 2024)'}
               </h1>
               <p style={{ fontSize: '13px', margin: 0, color: '#a7f3d0' }}>
-                {lang === 'hi' ? 'उत्तर भारत एवं यूपी के लिए 4-स्ट्रीम अपशिष्ट पृथक्कीकरण टूल' : 'Automated 4-Stream Logbook Engine aligned with SWM 2024'}
+                {lang === 'hi' ? '4-स्ट्रीम अपशिष्ट पृथक्कीकरण एवं अखिल भारतीय रीजनल एडजस्टमेंट टूल' : 'Automated 4-Stream Logbook Engine with Pan-India Regional Scaling'}
               </p>
             </div>
             <button onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#047857', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
@@ -186,13 +211,28 @@ export default function App() {
         <div style={{ padding: '15px', maxWidth: '1000px', margin: '0 auto' }}>
           <form onSubmit={handleGenerate} style={{ background: '#fff', padding: '16px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '20px' }}>
             
-            <div style={{ marginBottom: '14px', display: 'flex', gap: '15px', alignItems: 'center', fontSize: '14px' }}>
+            <div style={{ marginBottom: '14px', display: 'flex', gap: '15px', alignItems: 'center', fontSize: '14px', flexWrap: 'wrap' }}>
               <strong>{lang === 'hi' ? 'सुविधा प्रकार:' : 'Facility:'}</strong>
               <label><input type="radio" value="ULB" checked={facilityType === 'ULB'} onChange={() => setFacilityType('ULB')} /> ULB</label>
               <label><input type="radio" value="MRF" checked={facilityType === 'MRF'} onChange={() => setFacilityType('MRF')} /> MRF Centre</label>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '14px' }}>
+              
+              {/* STATE / REGION SELECTOR */}
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '600', color: '#047857', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <MapPin size={13} /> {lang === 'hi' ? 'राज्य / क्षेत्र चुनें (Region/State)' : 'Select Region / State'}
+                </label>
+                <select style={{ ...inputStyle, border: '1px solid #059669', background: '#f0fdf4' }} value={region} onChange={(e) => setRegion(e.target.value)}>
+                  {Object.keys(REGIONS).map((key) => (
+                    <option key={key} value={key}>
+                      {lang === 'hi' ? REGIONS[key].labelHi : REGIONS[key].labelEn}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'निकाय / एमआरएफ का नाम' : 'ULB / MRF Name'}</label>
                 <input style={inputStyle} type="text" required value={name} onChange={(e) => setName(e.target.value)} />
@@ -266,7 +306,7 @@ export default function App() {
             <div ref={resultsRef} style={{ background: '#fff', padding: '15px', borderRadius: '8px', border: '1px solid #cbd5e1', scrollMarginTop: '15px' }}>
               
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '10px', borderRadius: '6px', marginBottom: '12px', fontSize: '12px', color: '#1e40af' }}>
-                <strong><Info size={14} style={{ verticalAlign: 'middle' }} /> SWM 2024 Guidance:</strong> 4-Stream segregation (Wet, Dry, Sanitary, Special Care) applied. Seasonal variations (~55-60% Wet) scaled for UP/North India.
+                <strong><Info size={14} style={{ verticalAlign: 'middle' }} /> SWM 2024 Guidance ({REGIONS[region].labelEn}):</strong> 4-Stream segregation applied. Baseline fractions dynamically scaled for selected geographical region.
               </div>
 
               {/* TABS */}
