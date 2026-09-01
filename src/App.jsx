@@ -1,5 +1,16 @@
-import React, { useState, useRef } from 'react';
-import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck, MapPin } from 'lucide-react';
+from pathlib import Path
+
+code = r'''import React, { useMemo, useRef, useState } from 'react';
+import {
+  Building2,
+  Download,
+  Lock,
+  Globe,
+  Check,
+  Info,
+  ShieldCheck,
+  MapPin
+} from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const MONTHS = [
@@ -17,13 +28,44 @@ const MONTHS = [
   { id: 12, shortEn: 'Dec', shortHi: 'दिसंबर', fullEn: 'December' }
 ];
 
+// Indicative modelling profiles. These are NOT official regulatory composition standards.
 const REGION_PROFILES = {
-  north_plains: { wetBase: 0.54, dryBase: 0.20, nameEn: 'North Plains', nameHi: 'उत्तरी मैदानी क्षेत्र' },
-  coastal_south: { wetBase: 0.62, dryBase: 0.16, nameEn: 'South & Coastal', nameHi: 'दक्षिण एवं तटीय क्षेत्र' },
-  western_central: { wetBase: 0.48, dryBase: 0.26, nameEn: 'West & Central', nameHi: 'पश्चिम एवं मध्य भारत' },
-  eastern_states: { wetBase: 0.56, dryBase: 0.18, nameEn: 'East India', nameHi: 'पूर्वी भारत' },
-  hilly_ne: { wetBase: 0.45, dryBase: 0.28, nameEn: 'Hilly & North-East', nameHi: 'पहाड़ी व पूर्वोत्तर क्षेत्र' },
-  national_avg: { wetBase: 0.52, dryBase: 0.22, nameEn: 'Pan-India Standard', nameHi: 'राष्ट्रीय औसत' }
+  north_plains: {
+    wetBase: 0.54,
+    dryBase: 0.20,
+    nameEn: 'North Plains',
+    nameHi: 'उत्तरी मैदानी क्षेत्र'
+  },
+  coastal_south: {
+    wetBase: 0.62,
+    dryBase: 0.16,
+    nameEn: 'South & Coastal',
+    nameHi: 'दक्षिण एवं तटीय क्षेत्र'
+  },
+  western_central: {
+    wetBase: 0.48,
+    dryBase: 0.26,
+    nameEn: 'West & Central',
+    nameHi: 'पश्चिम एवं मध्य भारत'
+  },
+  eastern_states: {
+    wetBase: 0.56,
+    dryBase: 0.18,
+    nameEn: 'East India',
+    nameHi: 'पूर्वी भारत'
+  },
+  hilly_ne: {
+    wetBase: 0.45,
+    dryBase: 0.28,
+    nameEn: 'Hilly & North-East',
+    nameHi: 'पहाड़ी व पूर्वोत्तर क्षेत्र'
+  },
+  national_avg: {
+    wetBase: 0.52,
+    dryBase: 0.22,
+    nameEn: 'Pan-India Standard',
+    nameHi: 'राष्ट्रीय औसत'
+  }
 };
 
 const STATES_LIST = [
@@ -66,29 +108,99 @@ const STATES_LIST = [
   { nameEn: 'Other / Pan-India Standard', nameHi: 'अन्य / राष्ट्रीय मानक', region: 'national_avg' }
 ];
 
-const getSeasonalFractions = (m, type, regionKey) => {
-  const profile = REGION_PROFILES[regionKey] || REGION_PROFILES.north_plains;
-  if (type === 'ULB') {
-    if ([5, 6, 7].includes(m)) return [profile.wetBase + 0.05, profile.dryBase - 0.02, 0.04, 0.02, 0.05, 0.12];
-    if ([8, 9].includes(m)) return [profile.wetBase + 0.03, profile.dryBase - 0.01, 0.04, 0.02, 0.05, 0.13];
-    return [profile.wetBase, profile.dryBase, 0.04, 0.02, 0.05, 0.15];
-  }
-  return [5, 6, 7].includes(m) ? [0.25, 0.15, 0.20, 0.22, 0.08, 0.10] : [0.20, 0.15, 0.25, 0.20, 0.10, 0.10];
+const inputStyle = {
+  width: '100%',
+  padding: '9px',
+  borderRadius: '6px',
+  border: '1px solid #cbd5e1',
+  marginTop: '4px',
+  boxSizing: 'border-box'
 };
 
-const inputStyle = { width: '100%', padding: '9px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' };
+function getSeasonalFractions(month, type, regionKey) {
+  const profile = REGION_PROFILES[regionKey] || REGION_PROFILES.north_plains;
+
+  if (type === 'ULB') {
+    if ([5, 6, 7].includes(month)) {
+      return [
+        profile.wetBase + 0.05,
+        profile.dryBase - 0.02,
+        0.04,
+        0.02,
+        0.05,
+        0.12
+      ];
+    }
+
+    if ([8, 9].includes(month)) {
+      return [
+        profile.wetBase + 0.03,
+        profile.dryBase - 0.01,
+        0.04,
+        0.02,
+        0.05,
+        0.13
+      ];
+    }
+
+    return [
+      profile.wetBase,
+      profile.dryBase,
+      0.04,
+      0.02,
+      0.05,
+      0.15
+    ];
+  }
+
+  // Indicative MRF distribution model.
+  return [5, 6, 7].includes(month)
+    ? [0.25, 0.15, 0.20, 0.22, 0.08, 0.10]
+    : [0.20, 0.15, 0.25, 0.20, 0.10, 0.10];
+}
+
+// Small deterministic PRNG so identical inputs generate identical outputs.
+function hashString(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i += 1) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed) {
+  return function random() {
+    let t = (seed += 0x6D2B79F5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function makeLocalDateString(year, month, day) {
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
 
 export default function App() {
   const [lang, setLang] = useState('hi');
   const [selectedState, setSelectedState] = useState('Uttar Pradesh');
   const [facilityType, setFacilityType] = useState('ULB');
   const [name, setName] = useState('Nagar Palika Parishad');
+
+  // ULB mode: population OR actual TPD, never both.
+  const [ulbCalculationMode, setUlbCalculationMode] = useState('population');
   const [population, setPopulation] = useState(150000);
-  const [perCapita, setPerCapita] = useState('450');
-  const [ulbFixedTons, setUlbFixedTons] = useState('');
+  const [perCapita, setPerCapita] = useState('400');
+  const [customPerCapita, setCustomPerCapita] = useState('');
+  const [ulbActualTons, setUlbActualTons] = useState('');
+  const [actualReferenceDays, setActualReferenceDays] = useState(30);
+
+  // MRF
   const [mrfDailyDryTons, setMrfDailyDryTons] = useState(15);
   const [mrfMaxCapacityTons, setMrfMaxCapacityTons] = useState(25);
-  const [startYear, setStartYear] = useState(2026);
+
+  const [startYear, setStartYear] = useState(new Date().getFullYear());
   const [selectedMonths, setSelectedMonths] = useState([1, 12]);
   const [displayUnit, setDisplayUnit] = useState('Tons');
   const [generatedMonthlyData, setGeneratedMonthlyData] = useState(null);
@@ -99,311 +211,1299 @@ export default function App() {
 
   const resultsRef = useRef(null);
 
-  const currentStateObj = STATES_LIST.find(s => s.nameEn === selectedState) || STATES_LIST[33];
+  const currentStateObj = useMemo(
+    () =>
+      STATES_LIST.find((s) => s.nameEn === selectedState) ||
+      STATES_LIST.find((s) => s.nameEn === 'Uttar Pradesh'),
+    [selectedState]
+  );
+
   const currentRegionKey = currentStateObj.region;
   const currentRegionObj = REGION_PROFILES[currentRegionKey];
 
+  const effectivePerCapita =
+    perCapita === 'custom'
+      ? parseFloat(customPerCapita)
+      : parseFloat(perCapita);
+
+  const estimatedUlbTpd =
+    Number(population) > 0 && Number(effectivePerCapita) > 0
+      ? (Number(population) * Number(effectivePerCapita)) / 1_000_000
+      : 0;
+
+  const mrfUtilization =
+    Number(mrfMaxCapacityTons) > 0
+      ? (Number(mrfDailyDryTons) / Number(mrfMaxCapacityTons)) * 100
+      : 0;
+
   const toggleMonth = (mId) => {
     if (selectedMonths.includes(mId)) {
-      if (selectedMonths.length > 1) setSelectedMonths(selectedMonths.filter(m => m !== mId));
-    } else {
-      if (selectedMonths.length >= 3) return alert(lang === 'hi' ? 'अधिकतम 3 माह चुन सकते हैं।' : 'Max 3 months allowed.');
-      setSelectedMonths([...selectedMonths, mId].sort((a, b) => a - b));
+      if (selectedMonths.length > 1) {
+        setSelectedMonths(selectedMonths.filter((m) => m !== mId));
+      }
+      return;
     }
+
+    if (selectedMonths.length >= 3) {
+      alert(
+        lang === 'hi'
+          ? 'अधिकतम 3 माह चुन सकते हैं।'
+          : 'Max 3 months allowed.'
+      );
+      return;
+    }
+
+    setSelectedMonths([...selectedMonths, mId].sort((a, b) => a - b));
   };
 
-  const getPrice = () => [0, 50, 100, 125][selectedMonths.length] || 50;
+  const getPrice = () => {
+    const prices = {
+      1: 50,
+      2: 100,
+      3: 125
+    };
+    return prices[selectedMonths.length] ?? 50;
+  };
+
+  const validateInputs = () => {
+    if (!name.trim()) {
+      alert(lang === 'hi' ? 'नाम दर्ज करें।' : 'Please enter the ULB / MRF name.');
+      return false;
+    }
+
+    if (!Number.isInteger(Number(startYear)) || startYear < 2000 || startYear > 2100) {
+      alert(lang === 'hi' ? 'मान्य वर्ष दर्ज करें।' : 'Please enter a valid year.');
+      return false;
+    }
+
+    if (facilityType === 'ULB') {
+      if (ulbCalculationMode === 'population') {
+        if (!(Number(population) > 0)) {
+          alert(lang === 'hi' ? 'वर्तमान जनसंख्या दर्ज करें।' : 'Please enter current population.');
+          return false;
+        }
+
+        if (!(Number(effectivePerCapita) > 0)) {
+          alert(
+            lang === 'hi'
+              ? 'प्रतिव्यक्ति अपशिष्ट उत्पादन दर दर्ज करें।'
+              : 'Please enter per-capita waste generation.'
+          );
+          return false;
+        }
+
+        if (effectivePerCapita < 250 || effectivePerCapita > 750) {
+          alert(
+            lang === 'hi'
+              ? 'कृपया प्रतिव्यक्ति दर की पुनः जांच करें। सामान्य मॉडलिंग सीमा 250–750 ग्राम/व्यक्ति/दिन रखी गई है।'
+              : 'Please re-check the per-capita rate. The model allows a broad validation range of 250–750 g/person/day.'
+          );
+          return false;
+        }
+      } else {
+        if (!(Number(ulbActualTons) > 0)) {
+          alert(
+            lang === 'hi'
+              ? 'औसत वास्तविक दैनिक अपशिष्ट (TPD) दर्ज करें।'
+              : 'Please enter observed average daily waste generation (TPD).'
+          );
+          return false;
+        }
+
+        if (!(Number(actualReferenceDays) > 0)) {
+          alert(
+            lang === 'hi'
+              ? 'संदर्भ अवधि (दिन) दर्ज करें।'
+              : 'Please enter the reference period in days.'
+          );
+          return false;
+        }
+      }
+    }
+
+    if (facilityType === 'MRF') {
+      if (!(Number(mrfDailyDryTons) > 0) || !(Number(mrfMaxCapacityTons) > 0)) {
+        alert(
+          lang === 'hi'
+            ? 'MRF दैनिक आवक और क्षमता दोनों दर्ज करें।'
+            : 'Please enter both MRF daily input and MRF capacity.'
+        );
+        return false;
+      }
+
+      if (Number(mrfDailyDryTons) > Number(mrfMaxCapacityTons)) {
+        const ok = window.confirm(
+          lang === 'hi'
+            ? `दैनिक आवक (${mrfDailyDryTons} TPD) MRF क्षमता (${mrfMaxCapacityTons} TPD) से अधिक है। उपयोग ${mrfUtilization.toFixed(1)}% है। क्या फिर भी डेटा जनरेट करना है?`
+            : `Daily input (${mrfDailyDryTons} TPD) exceeds MRF capacity (${mrfMaxCapacityTons} TPD). Utilization is ${mrfUtilization.toFixed(1)}%. Generate anyway?`
+        );
+        if (!ok) return false;
+      }
+    }
+
+    return true;
+  };
+
+  const getTargetTons = () => {
+    if (facilityType === 'MRF') {
+      return Number(mrfDailyDryTons);
+    }
+
+    if (ulbCalculationMode === 'actual') {
+      return Number(ulbActualTons);
+    }
+
+    // population × g/capita/day ÷ 1,000,000 = tonnes/day
+    return (Number(population) * Number(effectivePerCapita)) / 1_000_000;
+  };
 
   const handleGenerate = (e) => {
     e.preventDefault();
+
+    if (!validateInputs()) return;
+
     setIsPaid(false);
-    let monthlyDataMap = {};
 
-    selectedMonths.forEach((m) => {
-      const days = [1, 3, 5, 7, 8, 10, 12].includes(m) ? 31 : (m === 2 ? 28 : 30);
-      const targetTons = facilityType === 'ULB' 
-        ? (ulbFixedTons > 0 ? parseFloat(ulbFixedTons) : (population * (parseFloat(perCapita) / 1000)) / 1000)
-        : parseFloat(mrfDailyDryTons);
+    const targetTons = getTargetTons();
+    const monthlyDataMap = {};
 
-      const baseFractions = getSeasonalFractions(m, facilityType, currentRegionKey);
-      let logs = [];
+    selectedMonths.forEach((month) => {
+      // Correct leap-year handling.
+      const days = new Date(Number(startYear), month, 0).getDate();
+      const baseFractions = getSeasonalFractions(
+        month,
+        facilityType,
+        currentRegionKey
+      );
 
-      for (let day = 1; day <= days; day++) {
-        const dateObj = new Date(startYear, m - 1, day);
-        let dailyTotal = targetTons * (0.95 + Math.random() * 0.10) * ([0, 6].includes(dateObj.getDay()) ? 1.05 : 1);
-        let raw = baseFractions.map(r => r * (0.88 + Math.random() * 0.24));
-        let sum = raw.reduce((a, b) => a + b, 0);
-        let norm = raw.map(r => r / sum);
+      // Same inputs => same monthly data.
+      const seedText = [
+        facilityType,
+        selectedState,
+        name.trim().toLowerCase(),
+        startYear,
+        month,
+        ulbCalculationMode,
+        population,
+        effectivePerCapita,
+        ulbActualTons,
+        mrfDailyDryTons
+      ].join('|');
+
+      const random = mulberry32(hashString(seedText));
+      const logs = [];
+
+      for (let day = 1; day <= days; day += 1) {
+        const dateObj = new Date(Number(startYear), month - 1, day);
+        const weekendMultiplier = [0, 6].includes(dateObj.getDay()) ? 1.05 : 1;
+
+        // Approx. ±5% day-to-day total variation.
+        const dailyTotal =
+          targetTons * (0.95 + random() * 0.10) * weekendMultiplier;
+
+        // Mild deterministic category variation.
+        const raw = baseFractions.map(
+          (fraction) => fraction * (0.88 + random() * 0.24)
+        );
+
+        const sum = raw.reduce((a, b) => a + b, 0);
+        const norm = raw.map((value) => value / sum);
+
+        const parts = norm.map((fraction) =>
+          Number((dailyTotal * fraction).toFixed(2))
+        );
+
+        // Recalculate displayed total from categories so row totals match
+        // the rounded category values exactly.
+        const roundedTotal = Number(
+          parts.reduce((a, b) => a + b, 0).toFixed(2)
+        );
 
         logs.push({
-          date: dateObj.toISOString().split('T')[0],
+          date: makeLocalDateString(startYear, month, day),
           dayName: dateObj.toLocaleDateString('en-US', { weekday: 'short' }),
-          c1: parseFloat((dailyTotal * norm[0]).toFixed(2)),
-          c2: parseFloat((dailyTotal * norm[1]).toFixed(2)),
-          c3: parseFloat((dailyTotal * norm[2]).toFixed(2)),
-          c4: parseFloat((dailyTotal * norm[3]).toFixed(2)),
-          c5: parseFloat((dailyTotal * norm[4]).toFixed(2)),
-          c6: parseFloat((dailyTotal * norm[5]).toFixed(2)),
-          total: parseFloat(dailyTotal.toFixed(2))
+          c1: parts[0],
+          c2: parts[1],
+          c3: parts[2],
+          c4: parts[3],
+          c5: parts[4],
+          c6: parts[5],
+          total: roundedTotal
         });
       }
-      monthlyDataMap[m] = logs;
+
+      monthlyDataMap[month] = logs;
     });
 
     setGeneratedMonthlyData(monthlyDataMap);
     setActiveTabMonth(selectedMonths[0]);
-    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+
+    setTimeout(() => {
+      resultsRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }, 100);
+  };
+
+  const loadRazorpay = async () => {
+    if (window.Razorpay) return true;
+
+    return new Promise((resolve, reject) => {
+      const existing = document.querySelector(
+        'script[src*="checkout.razorpay.com"]'
+      );
+
+      if (existing) {
+        existing.addEventListener('load', () => resolve(true), { once: true });
+        existing.addEventListener(
+          'error',
+          () => reject(new Error('Unable to load Razorpay checkout.')),
+          { once: true }
+        );
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () =>
+        reject(new Error('Unable to load Razorpay checkout.'));
+      document.body.appendChild(script);
+    });
   };
 
   const handlePayment = async () => {
+    if (!generatedMonthlyData || isProcessing) return;
+
     setIsProcessing(true);
-    if (!window.Razorpay) {
-      await new Promise((res) => {
-        if (document.querySelector('script[src*="checkout.razorpay.com"]')) return res(true);
-        const s = document.createElement('script');
-        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        s.onload = () => res(true);
-        document.body.appendChild(s);
-      });
-    }
 
     try {
-      const res = await fetch('/api/create-order', {
+      await loadRazorpay();
+
+      const orderRes = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: getPrice() * 100 })
+        body: JSON.stringify({
+          amount: getPrice() * 100,
+          months: selectedMonths.length,
+          facilityType
+        })
       });
-      const order = await res.json();
 
-      new window.Razorpay({
+      if (!orderRes.ok) {
+        throw new Error('Unable to create payment order.');
+      }
+
+      const order = await orderRes.json();
+
+      if (!order?.id || !order?.amount || !order?.currency) {
+        throw new Error('Invalid order response from server.');
+      }
+
+      const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: order.amount,
         currency: order.currency,
-        name: 'SWM 2024 Logbook Engine',
-        description: `${facilityType} (${selectedMonths.length} Months) - ${name}`,
+        name: 'SWM Logbook Estimation Tool',
+        description: `${facilityType} (${selectedMonths.length} Month/s) - ${name}`,
         order_id: order.id,
-        handler: () => { setIsPaid(true); setIsProcessing(false); downloadMultiSheetExcel(); },
+
+        handler: async (response) => {
+          try {
+            // IMPORTANT:
+            // /api/verify-payment must verify the Razorpay signature on your server.
+            const verifyRes = await fetch('/api/verify-payment', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              })
+            });
+
+            const verification = await verifyRes.json();
+
+            if (!verifyRes.ok || !verification?.verified) {
+              throw new Error('Payment could not be verified.');
+            }
+
+            setIsPaid(true);
+            setIsProcessing(false);
+            downloadMultiSheetExcel();
+          } catch (error) {
+            setIsProcessing(false);
+            alert(
+              lang === 'hi'
+                ? `भुगतान सत्यापन त्रुटि: ${error.message}`
+                : `Payment verification error: ${error.message}`
+            );
+          }
+        },
+
+        modal: {
+          ondismiss: () => setIsProcessing(false)
+        },
+
         theme: { color: '#059669' }
-      }).open();
-    } catch (err) {
-      alert('Payment Error: ' + err.message);
+      };
+
+      const razorpay = new window.Razorpay(options);
+
+      razorpay.on('payment.failed', (response) => {
+        setIsProcessing(false);
+        alert(
+          lang === 'hi'
+            ? `भुगतान विफल: ${response?.error?.description || 'Unknown error'}`
+            : `Payment failed: ${response?.error?.description || 'Unknown error'}`
+        );
+      });
+
+      razorpay.open();
+    } catch (error) {
       setIsProcessing(false);
+      alert(
+        lang === 'hi'
+          ? `भुगतान त्रुटि: ${error.message}`
+          : `Payment Error: ${error.message}`
+      );
     }
   };
 
-  const formatVal = (v) => displayUnit === 'kg' ? Math.round(v * 1000) : v.toFixed(2);
+  const formatVal = (value) =>
+    displayUnit === 'kg'
+      ? Math.round(Number(value) * 1000)
+      : Number(value).toFixed(2);
 
   const downloadMultiSheetExcel = () => {
     if (!generatedMonthlyData) return;
-    const u = displayUnit === 'kg' ? 'kg' : 'Tons';
-    const headers = facilityType === 'ULB'
-      ? ["Date", "Day", `Wet (${u})`, `Dry (${u})`, `Sanitary (${u})`, `Special Care/Hazardous (${u})`, `C&D (${u})`, `Inerts (${u})`, `Total (${u})`]
-      : ["Date", "Day", `PET (${u})`, `HDPE (${u})`, `Paper/Cardboard (${u})`, `RDF/SCF (${u})`, `Glass & Metal (${u})`, `Rejects (${u})`, `Total Dry (${u})` ];
+
+    const unit = displayUnit === 'kg' ? 'kg' : 'Tons';
+
+    const headers =
+      facilityType === 'ULB'
+        ? [
+            'Date',
+            'Day',
+            `Wet (${unit})`,
+            `Dry (${unit})`,
+            `Sanitary (${unit})`,
+            `Special Care/Hazardous (${unit})`,
+            `C&D (${unit})`,
+            `Inerts (${unit})`,
+            `Total (${unit})`
+          ]
+        : [
+            'Date',
+            'Day',
+            `PET (${unit})`,
+            `HDPE (${unit})`,
+            `Paper/Cardboard (${unit})`,
+            `RDF/SCF (${unit})`,
+            `Glass & Metal (${unit})`,
+            `Rejects (${unit})`,
+            `Total Dry (${unit})`
+          ];
 
     const wb = XLSX.utils.book_new();
+
     selectedMonths.forEach((mId) => {
-      const sheetData = [headers, ...generatedMonthlyData[mId].map(r => [
-        r.date, r.dayName, formatVal(r.c1), formatVal(r.c2), formatVal(r.c3), formatVal(r.c4), formatVal(r.c5), formatVal(r.c6), formatVal(r.total)
-      ])];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetData), MONTHS.find(m => m.id === mId)?.fullEn);
+      const monthRows = generatedMonthlyData[mId] || [];
+
+      const sheetData = [
+        headers,
+        ...monthRows.map((row) => [
+          row.date,
+          row.dayName,
+          formatVal(row.c1),
+          formatVal(row.c2),
+          formatVal(row.c3),
+          formatVal(row.c4),
+          formatVal(row.c5),
+          formatVal(row.c6),
+          formatVal(row.total)
+        ])
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+      // Helpful widths.
+      ws['!cols'] = [
+        { wch: 12 },
+        { wch: 8 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 26 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 18 }
+      ];
+
+      XLSX.utils.book_append_sheet(
+        wb,
+        ws,
+        MONTHS.find((m) => m.id === mId)?.fullEn || `Month-${mId}`
+      );
     });
-    XLSX.writeFile(wb, `${name.replace(/\s+/g, '_')}_SWM2024_${selectedMonths.length}M.xlsx`);
+
+    XLSX.writeFile(
+      wb,
+      `${name.trim().replace(/\s+/g, '_')}_SWM_Logbook_${selectedMonths.length}M.xlsx`
+    );
   };
 
   const activeRows = generatedMonthlyData?.[activeTabMonth] || [];
   const visibleRows = isPaid ? activeRows : activeRows.slice(0, 5);
-  const activeMonthObj = MONTHS.find(m => m.id === activeTabMonth);
+  const activeMonthObj = MONTHS.find((m) => m.id === activeTabMonth);
 
   return (
-    <div style={{ fontFamily: 'sans-serif', background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-      
+    <div
+      style={{
+        fontFamily: 'sans-serif',
+        background: '#f8fafc',
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between'
+      }}
+    >
       <div>
-        {/* HEADER BANNER */}
-        <div style={{ background: 'linear-gradient(135deg, #064e3b 0%, #047857 100%)', color: '#fff', padding: '20px 15px' }}>
-          <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+        {/* HEADER */}
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #064e3b 0%, #047857 100%)',
+            color: '#fff',
+            padding: '20px 15px'
+          }}
+        >
+          <div
+            style={{
+              maxWidth: '1000px',
+              margin: '0 auto',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '10px'
+            }}
+          >
             <div>
-              <span style={{ background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold' }}>
-                <ShieldCheck size={12} style={{ verticalAlign: 'middle' }} /> SWM 2024 COMPLIANT
+              <span
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  padding: '3px 8px',
+                  borderRadius: '12px',
+                  fontSize: '11px',
+                  fontWeight: 'bold'
+                }}
+              >
+                <ShieldCheck size={12} style={{ verticalAlign: 'middle' }} />{' '}
+                SWM-ALIGNED ESTIMATION TOOL
               </span>
-              <h1 style={{ fontSize: '22px', margin: '6px 0 2px 0', fontWeight: '800' }}>
-                <Building2 size={22} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लोगबुक जनरेटर (SWM 2024)' : 'ULB & MRF Waste Logbook Generator (SWM 2024)'}
+
+              <h1
+                style={{
+                  fontSize: '22px',
+                  margin: '6px 0 2px 0',
+                  fontWeight: '800'
+                }}
+              >
+                <Building2
+                  size={22}
+                  style={{ verticalAlign: 'middle', marginRight: '6px' }}
+                />
+                {lang === 'hi'
+                  ? 'यूएलबी एवं एमआरएफ लोगबुक जनरेटर'
+                  : 'ULB & MRF Waste Logbook Generator'}
               </h1>
-              <p style={{ fontSize: '13px', margin: 0, color: '#a7f3d0' }}>
-                {lang === 'hi' ? '4-स्ट्रीम अपशिष्ट पृथक्कीकरण एवं अखिल भारतीय राज्यवार एडजस्टमेंट टूल' : 'Automated 4-Stream Logbook Engine with Pan-India State-Wise Calibration'}
+
+              <p
+                style={{
+                  fontSize: '13px',
+                  margin: 0,
+                  color: '#a7f3d0'
+                }}
+              >
+                {lang === 'hi'
+                  ? 'मॉडल-आधारित अपशिष्ट श्रेणी वितरण एवं क्षेत्रीय अनुमान'
+                  : 'Model-based waste category distribution with regional estimation adjustments'}
               </p>
             </div>
-            <button onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#047857', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
-              <Globe size={15} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> {lang === 'hi' ? 'English' : 'हिंदी'}
+
+            <button
+              onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')}
+              style={{
+                padding: '6px 12px',
+                background: '#fff',
+                color: '#047857',
+                border: 'none',
+                borderRadius: '5px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                fontSize: '13px'
+              }}
+            >
+              <Globe
+                size={15}
+                style={{ verticalAlign: 'middle', marginRight: '4px' }}
+              />
+              {lang === 'hi' ? 'English' : 'हिंदी'}
             </button>
           </div>
         </div>
 
-        {/* FORM SECTION */}
+        {/* FORM */}
         <div style={{ padding: '15px', maxWidth: '1000px', margin: '0 auto' }}>
-          <form onSubmit={handleGenerate} style={{ background: '#fff', padding: '16px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '20px' }}>
-            
-            <div style={{ marginBottom: '14px', display: 'flex', gap: '15px', alignItems: 'center', fontSize: '14px', flexWrap: 'wrap' }}>
+          <form
+            onSubmit={handleGenerate}
+            style={{
+              background: '#fff',
+              padding: '16px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              marginBottom: '20px'
+            }}
+          >
+            <div
+              style={{
+                marginBottom: '14px',
+                display: 'flex',
+                gap: '15px',
+                alignItems: 'center',
+                fontSize: '14px',
+                flexWrap: 'wrap'
+              }}
+            >
               <strong>{lang === 'hi' ? 'सुविधा प्रकार:' : 'Facility:'}</strong>
-              <label><input type="radio" value="ULB" checked={facilityType === 'ULB'} onChange={() => setFacilityType('ULB')} /> ULB</label>
-              <label><input type="radio" value="MRF" checked={facilityType === 'MRF'} onChange={() => setFacilityType('MRF')} /> MRF Centre</label>
+
+              <label>
+                <input
+                  type="radio"
+                  checked={facilityType === 'ULB'}
+                  onChange={() => {
+                    setFacilityType('ULB');
+                    setGeneratedMonthlyData(null);
+                  }}
+                />{' '}
+                ULB
+              </label>
+
+              <label>
+                <input
+                  type="radio"
+                  checked={facilityType === 'MRF'}
+                  onChange={() => {
+                    setFacilityType('MRF');
+                    setGeneratedMonthlyData(null);
+                  }}
+                />{' '}
+                MRF Centre
+              </label>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '14px' }}>
-              
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                gap: '12px',
+                marginBottom: '14px'
+              }}
+            >
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#047857', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <MapPin size={13} /> {lang === 'hi' ? 'राज्य चुनें (State)' : 'Select State'}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <label
+                    style={{
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#047857',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    <MapPin size={13} />
+                    {lang === 'hi' ? 'राज्य चुनें' : 'Select State'}
                   </label>
-                  <button 
-                    type="button" 
-                    onClick={() => setShowStateInfo(!showStateInfo)} 
-                    style={{ background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center', gap: '2px', fontSize: '12px', fontWeight: 'bold' }}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowStateInfo(!showStateInfo)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#0284c7',
+                      cursor: 'pointer',
+                      padding: '0 2px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '2px',
+                      fontSize: '12px',
+                      fontWeight: 'bold'
+                    }}
                   >
                     <Info size={14} /> (i)
                   </button>
                 </div>
 
-                <select style={{ ...inputStyle, border: '1px solid #059669', background: '#f0fdf4' }} value={selectedState} onChange={(e) => setSelectedState(e.target.value)}>
-                  {STATES_LIST.map((s) => (
-                    <option key={s.nameEn} value={s.nameEn}>
-                      {lang === 'hi' ? s.nameHi : s.nameEn}
+                <select
+                  style={{
+                    ...inputStyle,
+                    border: '1px solid #059669',
+                    background: '#f0fdf4'
+                  }}
+                  value={selectedState}
+                  onChange={(e) => setSelectedState(e.target.value)}
+                >
+                  {STATES_LIST.map((state) => (
+                    <option key={state.nameEn} value={state.nameEn}>
+                      {lang === 'hi' ? state.nameHi : state.nameEn}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'निकाय / एमआरएफ का नाम' : 'ULB / MRF Name'}</label>
-                <input style={inputStyle} type="text" required value={name} onChange={(e) => setName(e.target.value)} />
+                <label style={{ fontSize: '12px', fontWeight: '600' }}>
+                  {lang === 'hi' ? 'निकाय / एमआरएफ का नाम' : 'ULB / MRF Name'}
+                </label>
+
+                <input
+                  style={inputStyle}
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
               </div>
 
-              {facilityType === 'ULB' ? (
-                <>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'जनसंख्या' : 'Population'}</label>
-                    <input style={{ ...inputStyle, background: ulbFixedTons ? '#e2e8f0' : '#fff' }} type="number" disabled={!!ulbFixedTons} value={population} onChange={(e) => setPopulation(Number(e.target.value))} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'प्रतिव्यक्ति अपशिष्ट' : 'Per Capita Rate'}</label>
-                    <select style={{ ...inputStyle, background: ulbFixedTons ? '#e2e8f0' : '#fff' }} disabled={!!ulbFixedTons} value={perCapita} onChange={(e) => setPerCapita(e.target.value)}>
-                      <option value="350">350 g/capita/day</option>
-                      <option value="400">400 g/capita/day</option>
-                      <option value="450">450 g/capita/day</option>
-                      <option value="500">500 g/capita/day</option>
-                    </select>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'सूखा कचरा आवक (टन/दिन)' : 'Daily Dry Input (Tons)'}</label>
-                    <input style={inputStyle} type="number" step="0.01" required value={mrfDailyDryTons} onChange={(e) => setMrfDailyDryTons(e.target.value)} />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'एमआरएफ क्षमता (टन/दिन)' : 'MRF Capacity (Tons)'}</label>
-                    <input style={inputStyle} type="number" step="0.01" required value={mrfMaxCapacityTons} onChange={(e) => setMrfMaxCapacityTons(e.target.value)} />
-                  </div>
-                </>
-              )}
-
               <div>
-                <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'वर्ष' : 'Year'}</label>
-                <input style={inputStyle} type="number" value={startYear} onChange={(e) => setStartYear(Number(e.target.value))} />
+                <label style={{ fontSize: '12px', fontWeight: '600' }}>
+                  {lang === 'hi' ? 'वर्ष' : 'Year'}
+                </label>
+
+                <input
+                  style={inputStyle}
+                  type="number"
+                  min="2000"
+                  max="2100"
+                  value={startYear}
+                  onChange={(e) => setStartYear(Number(e.target.value))}
+                />
               </div>
             </div>
 
             {showStateInfo && (
-              <div style={{ background: '#f0f9ff', border: '1px solid #7dd3fc', padding: '10px 14px', borderRadius: '6px', marginBottom: '14px', fontSize: '12px', color: '#0369a1', lineHeight: '1.4' }}>
-                <div style={{ fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <span>ℹ️ {lang === 'hi' ? 'राज्य चयन का महत्व:' : 'Relevance of Selecting Your State:'}</span>
-                  <button type="button" onClick={() => setShowStateInfo(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0369a1', fontWeight: 'bold' }}>✕</button>
+              <div
+                style={{
+                  background: '#f0f9ff',
+                  border: '1px solid #7dd3fc',
+                  padding: '10px 14px',
+                  borderRadius: '6px',
+                  marginBottom: '14px',
+                  fontSize: '12px',
+                  color: '#0369a1',
+                  lineHeight: '1.4'
+                }}
+              >
+                <div
+                  style={{
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '4px'
+                  }}
+                >
+                  <span>
+                    ℹ️{' '}
+                    {lang === 'hi'
+                      ? 'राज्य चयन का महत्व:'
+                      : 'Relevance of Selecting Your State:'}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowStateInfo(false)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#0369a1',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    ✕
+                  </button>
                 </div>
+
                 <p style={{ margin: '0 0 4px 0' }}>
                   {lang === 'hi'
-                    ? `आपके द्वारा चुने गए राज्य (${currentStateObj.nameHi}) को ${currentRegionObj.nameHi} क्षेत्र में वर्गीकृत किया गया है।`
-                    : `Selected state (${currentStateObj.nameEn}) is mapped to the ${currentRegionObj.nameEn} zone.`}
+                    ? `चयनित राज्य (${currentStateObj.nameHi}) को ${currentRegionObj.nameHi} क्षेत्र में रखा गया है। क्षेत्रीय कारक केवल मॉडल-आधारित अनुमान हैं।`
+                    : `Selected state (${currentStateObj.nameEn}) is mapped to the ${currentRegionObj.nameEn} zone. Regional factors are indicative model assumptions only.`}
                 </p>
-                <ul style={{ margin: 0, paddingLeft: '18px' }}>
-                  <li>{lang === 'hi' ? 'तटीय/दक्षिणी राज्यों में नमी एवं जैविक कचरा अधिक रहता है (~62% Wet Base)।' : 'Coastal & Southern states experience higher humidity and organic fraction (~62% Wet Base).'}</li>
-                  <li>{lang === 'hi' ? 'मेट्रो/पश्चिमी राज्यों में प्लास्टिक व पैकेजिंग अधिक होती है (~26% Dry Base)।' : 'Metro & Western states produce higher packaging/plastic waste (~26% Dry Base).'}</li>
-                  <li>{lang === 'hi' ? 'उत्तरी व पूर्वोत्तर क्षेत्रों में मौसमी तापमान और फलों के उत्पादन के अनुसार गीला कचरा बदलता है।' : 'Northern & NE states scale wet waste dynamically with seasonal fruit harvests and temperature.'}</li>
-                </ul>
               </div>
             )}
 
+            {/* ULB INPUTS */}
+            {facilityType === 'ULB' && (
+              <div
+                style={{
+                  border: '1px solid #d1fae5',
+                  background: '#f0fdf4',
+                  padding: '14px',
+                  borderRadius: '8px',
+                  marginBottom: '14px'
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    marginBottom: '10px',
+                    color: '#065f46'
+                  }}
+                >
+                  {lang === 'hi'
+                    ? 'यूएलबी अपशिष्ट गणना का आधार — केवल एक विकल्प चुनें'
+                    : 'ULB Waste Calculation Basis — select only one'}
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '18px',
+                    flexWrap: 'wrap',
+                    marginBottom: '12px',
+                    fontSize: '13px'
+                  }}
+                >
+                  <label>
+                    <input
+                      type="radio"
+                      checked={ulbCalculationMode === 'population'}
+                      onChange={() => setUlbCalculationMode('population')}
+                    />{' '}
+                    {lang === 'hi'
+                      ? 'वर्तमान जनसंख्या आधारित अनुमान'
+                      : 'Current population-based estimation'}
+                  </label>
+
+                  <label>
+                    <input
+                      type="radio"
+                      checked={ulbCalculationMode === 'actual'}
+                      onChange={() => setUlbCalculationMode('actual')}
+                    />{' '}
+                    {lang === 'hi'
+                      ? 'वास्तविक / प्रेक्षित औसत TPD'
+                      : 'Actual / observed average TPD'}
+                  </label>
+                </div>
+
+                {ulbCalculationMode === 'population' ? (
+                  <>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns:
+                          'repeat(auto-fit, minmax(220px, 1fr))',
+                        gap: '12px'
+                      }}
+                    >
+                      <div>
+                        <label
+                          style={{ fontSize: '12px', fontWeight: '600' }}
+                        >
+                          {lang === 'hi'
+                            ? 'वर्तमान अनुमानित जनसंख्या'
+                            : 'Current Estimated Population'}
+                        </label>
+
+                        <input
+                          style={inputStyle}
+                          type="number"
+                          min="1"
+                          value={population}
+                          onChange={(e) =>
+                            setPopulation(Number(e.target.value))
+                          }
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          style={{ fontSize: '12px', fontWeight: '600' }}
+                        >
+                          {lang === 'hi'
+                            ? 'प्रतिव्यक्ति अपशिष्ट उत्पादन'
+                            : 'Per-capita Waste Generation'}
+                        </label>
+
+                        <select
+                          style={inputStyle}
+                          value={perCapita}
+                          onChange={(e) => setPerCapita(e.target.value)}
+                        >
+                          <option value="300">300 g/person/day</option>
+                          <option value="350">350 g/person/day</option>
+                          <option value="400">400 g/person/day</option>
+                          <option value="450">450 g/person/day</option>
+                          <option value="500">500 g/person/day</option>
+                          <option value="custom">
+                            {lang === 'hi'
+                              ? 'कस्टम दर'
+                              : 'Custom rate'}
+                          </option>
+                        </select>
+                      </div>
+
+                      {perCapita === 'custom' && (
+                        <div>
+                          <label
+                            style={{ fontSize: '12px', fontWeight: '600' }}
+                          >
+                            {lang === 'hi'
+                              ? 'कस्टम दर (ग्राम/व्यक्ति/दिन)'
+                              : 'Custom rate (g/person/day)'}
+                          </label>
+
+                          <input
+                            style={inputStyle}
+                            type="number"
+                            min="250"
+                            max="750"
+                            step="1"
+                            value={customPerCapita}
+                            onChange={(e) =>
+                              setCustomPerCapita(e.target.value)
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: '10px',
+                        fontSize: '12px',
+                        color: '#065f46'
+                      }}
+                    >
+                      <strong>
+                        {lang === 'hi'
+                          ? 'अनुमानित दैनिक अपशिष्ट:'
+                          : 'Estimated Daily Waste:'}
+                      </strong>{' '}
+                      {estimatedUlbTpd.toFixed(2)} TPD
+                      <div style={{ marginTop: '3px', color: '#475569' }}>
+                        {lang === 'hi'
+                          ? 'सूत्र: वर्तमान जनसंख्या × ग्राम/व्यक्ति/दिन ÷ 10,00,000'
+                          : 'Formula: Current population × g/person/day ÷ 1,000,000'}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns:
+                        'repeat(auto-fit, minmax(220px, 1fr))',
+                      gap: '12px'
+                    }}
+                  >
+                    <div>
+                      <label
+                        style={{ fontSize: '12px', fontWeight: '600' }}
+                      >
+                        {lang === 'hi'
+                          ? 'औसत वास्तविक दैनिक अपशिष्ट (TPD)'
+                          : 'Observed Average Daily Waste (TPD)'}
+                      </label>
+
+                      <input
+                        style={inputStyle}
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={ulbActualTons}
+                        onChange={(e) => setUlbActualTons(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        style={{ fontSize: '12px', fontWeight: '600' }}
+                      >
+                        {lang === 'hi'
+                          ? 'संदर्भ अवधि (दिन)'
+                          : 'Reference Period (days)'}
+                      </label>
+
+                      <input
+                        style={inputStyle}
+                        type="number"
+                        min="1"
+                        value={actualReferenceDays}
+                        onChange={(e) =>
+                          setActualReferenceDays(Number(e.target.value))
+                        }
+                      />
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: '12px',
+                        color: '#475569',
+                        alignSelf: 'end',
+                        paddingBottom: '8px'
+                      }}
+                    >
+                      {lang === 'hi'
+                        ? 'जहाँ विश्वसनीय स्थानीय रिकॉर्ड उपलब्ध हों, वहाँ वास्तविक औसत TPD को प्राथमिकता दें।'
+                        : 'Where reliable local records are available, prefer observed average TPD over population-based estimation.'}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* MRF INPUTS */}
+            {facilityType === 'MRF' && (
+              <div
+                style={{
+                  border: '1px solid #dbeafe',
+                  background: '#eff6ff',
+                  padding: '14px',
+                  borderRadius: '8px',
+                  marginBottom: '14px'
+                }}
+              >
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns:
+                      'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '12px'
+                  }}
+                >
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: '600' }}>
+                      {lang === 'hi'
+                        ? 'सूखा कचरा आवक (टन/दिन)'
+                        : 'Daily Dry Input (Tons/day)'}
+                    </label>
+
+                    <input
+                      style={inputStyle}
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={mrfDailyDryTons}
+                      onChange={(e) => setMrfDailyDryTons(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: '600' }}>
+                      {lang === 'hi'
+                        ? 'MRF क्षमता (टन/दिन)'
+                        : 'MRF Capacity (Tons/day)'}
+                    </label>
+
+                    <input
+                      style={inputStyle}
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={mrfMaxCapacityTons}
+                      onChange={(e) => setMrfMaxCapacityTons(e.target.value)}
+                    />
+                  </div>
+
+                  <div
+                    style={{
+                      alignSelf: 'end',
+                      paddingBottom: '8px',
+                      fontSize: '12px',
+                      color:
+                        mrfUtilization > 100 ? '#b91c1c' : '#1e40af',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    {lang === 'hi'
+                      ? 'क्षमता उपयोग'
+                      : 'Capacity Utilization'}
+                    : {Number.isFinite(mrfUtilization) ? mrfUtilization.toFixed(1) : '0.0'}%
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MONTHS */}
             <div style={{ marginBottom: '14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
-                <strong>{lang === 'hi' ? 'माह चुनें (अधिकतम 3):' : 'Select Months (Max 3):'}</strong>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginBottom: '6px',
+                  fontSize: '13px'
+                }}
+              >
+                <strong>
+                  {lang === 'hi'
+                    ? 'माह चुनें (अधिकतम 3):'
+                    : 'Select Months (Max 3):'}
+                </strong>
+
                 <span style={{ color: '#059669', fontWeight: 'bold' }}>
-                  {selectedMonths.length} {lang === 'hi' ? 'माह' : 'Month/s'} — ₹{getPrice()}
+                  {selectedMonths.length}{' '}
+                  {lang === 'hi' ? 'माह' : 'Month/s'} — ₹{getPrice()}
                 </span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '6px' }}>
-                {MONTHS.map((m) => {
-                  const active = selectedMonths.includes(m.id);
+
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns:
+                    'repeat(auto-fill, minmax(75px, 1fr))',
+                  gap: '6px'
+                }}
+              >
+                {MONTHS.map((month) => {
+                  const active = selectedMonths.includes(month.id);
+
                   return (
-                    <button key={m.id} type="button" onClick={() => toggleMonth(m.id)} style={{
-                      padding: '8px 2px', borderRadius: '5px', border: active ? '2px solid #059669' : '1px solid #cbd5e1',
-                      background: active ? '#ecfdf5' : '#fff', color: active ? '#065f46' : '#334155', fontWeight: active ? 'bold' : 'normal', cursor: 'pointer', fontSize: '12px'
-                    }}>
-                      {active && <Check size={11} />} {lang === 'hi' ? m.shortHi : m.shortEn}
+                    <button
+                      key={month.id}
+                      type="button"
+                      onClick={() => toggleMonth(month.id)}
+                      style={{
+                        padding: '8px 2px',
+                        borderRadius: '5px',
+                        border: active
+                          ? '2px solid #059669'
+                          : '1px solid #cbd5e1',
+                        background: active ? '#ecfdf5' : '#fff',
+                        color: active ? '#065f46' : '#334155',
+                        fontWeight: active ? 'bold' : 'normal',
+                        cursor: 'pointer',
+                        fontSize: '12px'
+                      }}
+                    >
+                      {active && <Check size={11} />}{' '}
+                      {lang === 'hi' ? month.shortHi : month.shortEn}
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            <button type="submit" style={{ width: '100%', padding: '12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
-              {lang === 'hi' ? 'SWM 2024 लोगबुक जनरेट करें →' : 'Generate SWM 2024 Dataset →'}
+            <button
+              type="submit"
+              style={{
+                width: '100%',
+                padding: '12px',
+                background: '#059669',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '15px'
+              }}
+            >
+              {lang === 'hi'
+                ? 'लोगबुक डेटा जनरेट करें →'
+                : 'Generate Logbook Dataset →'}
             </button>
           </form>
 
+          {/* RESULTS */}
           {generatedMonthlyData && (
-            <div ref={resultsRef} style={{ background: '#fff', padding: '15px', borderRadius: '8px', border: '1px solid #cbd5e1', scrollMarginTop: '15px' }}>
-              
-              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '10px', borderRadius: '6px', marginBottom: '12px', fontSize: '12px', color: '#1e40af' }}>
-                <strong><Info size={14} style={{ verticalAlign: 'middle' }} /> SWM 2024 Guidance ({currentStateObj.nameEn} / {currentRegionObj.nameEn}):</strong> 4-Stream segregation applied. Baseline waste composition calibrated for chosen state profile.
+            <div
+              ref={resultsRef}
+              style={{
+                background: '#fff',
+                padding: '15px',
+                borderRadius: '8px',
+                border: '1px solid #cbd5e1',
+                scrollMarginTop: '15px'
+              }}
+            >
+              <div
+                style={{
+                  background: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  padding: '10px',
+                  borderRadius: '6px',
+                  marginBottom: '12px',
+                  fontSize: '12px',
+                  color: '#1e40af'
+                }}
+              >
+                <strong>
+                  <Info
+                    size={14}
+                    style={{ verticalAlign: 'middle' }}
+                  />{' '}
+                  Model Guidance ({currentStateObj.nameEn} /{' '}
+                  {currentRegionObj.nameEn}):
+                </strong>{' '}
+                Regional composition factors and day-to-day variations are
+                indicative modelling assumptions. Use actual weighbridge /
+                collection records where available.
               </div>
 
-              <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '12px', overflowX: 'auto' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  borderBottom: '2px solid #e2e8f0',
+                  marginBottom: '12px',
+                  overflowX: 'auto'
+                }}
+              >
                 {selectedMonths.map((mId) => (
-                  <button key={mId} onClick={() => setActiveTabMonth(mId)} style={{
-                    padding: '8px 16px', border: 'none', borderBottom: activeTabMonth === mId ? '3px solid #059669' : 'none',
-                    background: activeTabMonth === mId ? '#ecfdf5' : 'transparent', fontWeight: activeTabMonth === mId ? 'bold' : 'normal', cursor: 'pointer', fontSize: '13px'
-                  }}>
-                    {MONTHS.find(m => m.id === mId)?.[lang === 'hi' ? 'shortHi' : 'fullEn']}
+                  <button
+                    key={mId}
+                    onClick={() => setActiveTabMonth(mId)}
+                    style={{
+                      padding: '8px 16px',
+                      border: 'none',
+                      borderBottom:
+                        activeTabMonth === mId
+                          ? '3px solid #059669'
+                          : 'none',
+                      background:
+                        activeTabMonth === mId
+                          ? '#ecfdf5'
+                          : 'transparent',
+                      fontWeight:
+                        activeTabMonth === mId ? 'bold' : 'normal',
+                      cursor: 'pointer',
+                      fontSize: '13px'
+                    }}
+                  >
+                    {
+                      MONTHS.find((m) => m.id === mId)?.[
+                        lang === 'hi' ? 'shortHi' : 'fullEn'
+                      ]
+                    }
                   </button>
                 ))}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{name} ({currentStateObj.nameEn}) — {activeMonthObj?.fullEn} {startYear}</span>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '10px',
+                  flexWrap: 'wrap',
+                  gap: '8px'
+                }}
+              >
+                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>
+                  {name} ({currentStateObj.nameEn}) —{' '}
+                  {activeMonthObj?.fullEn} {startYear}
+                </span>
+
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => setDisplayUnit(displayUnit === 'Tons' ? 'kg' : 'Tons')} style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
+                  <button
+                    onClick={() =>
+                      setDisplayUnit(
+                        displayUnit === 'Tons' ? 'kg' : 'Tons'
+                      )
+                    }
+                    style={{
+                      padding: '6px 10px',
+                      fontSize: '12px',
+                      borderRadius: '4px',
+                      border: '1px solid #cbd5e1'
+                    }}
+                  >
                     Unit: <strong>{displayUnit}</strong>
                   </button>
+
                   {isPaid ? (
-                    <button onClick={downloadMultiSheetExcel} style={{ padding: '6px 12px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                    <button
+                      onClick={downloadMultiSheetExcel}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#0f172a',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 'bold'
+                      }}
+                    >
                       <Download size={13} /> Export Excel (.xlsx)
                     </button>
                   ) : (
-                    <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '6px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                      {isProcessing ? 'Wait...' : `Pay ₹${getPrice()} to Unlock`}
+                    <button
+                      onClick={handlePayment}
+                      disabled={isProcessing}
+                      style={{
+                        padding: '6px 12px',
+                        background: '#059669',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        opacity: isProcessing ? 0.7 : 1
+                      }}
+                    >
+                      {isProcessing
+                        ? 'Wait...'
+                        : `Pay ₹${getPrice()} to Unlock`}
                     </button>
                   )}
                 </div>
               </div>
 
-              <div style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}>
-                <table cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '700px' }}>
+              <div
+                style={{
+                  overflowX: 'auto',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '4px'
+                }}
+              >
+                <table
+                  cellPadding="8"
+                  style={{
+                    width: '100%',
+                    borderCollapse: 'collapse',
+                    fontSize: '12px',
+                    minWidth: '700px'
+                  }}
+                >
                   <thead>
-                    <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-                      <th>Date</th><th>Day</th>
+                    <tr
+                      style={{
+                        background: '#f1f5f9',
+                        borderBottom: '1px solid #cbd5e1'
+                      }}
+                    >
+                      <th>Date</th>
+                      <th>Day</th>
+
                       {facilityType === 'ULB' ? (
                         <>
-                          <th style={{ background: '#ecfdf5' }}>Wet ({displayUnit})</th>
+                          <th style={{ background: '#ecfdf5' }}>
+                            Wet ({displayUnit})
+                          </th>
                           <th>Dry ({displayUnit})</th>
                           <th>Sanitary ({displayUnit})</th>
                           <th>Special Care ({displayUnit})</th>
@@ -413,18 +1513,46 @@ export default function App() {
                         </>
                       ) : (
                         <>
-                          <th>PET</th><th>HDPE</th><th>Paper</th><th>RDF</th><th>Glass/Metal</th><th>Rejects</th><th>Total Dry</th>
+                          <th>PET ({displayUnit})</th>
+                          <th>HDPE ({displayUnit})</th>
+                          <th>Paper ({displayUnit})</th>
+                          <th>RDF ({displayUnit})</th>
+                          <th>Glass/Metal ({displayUnit})</th>
+                          <th>Rejects ({displayUnit})</th>
+                          <th>Total Dry ({displayUnit})</th>
                         </>
                       )}
                     </tr>
                   </thead>
+
                   <tbody>
-                    {visibleRows.map((r, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <td>{r.date}</td><td>{r.dayName}</td>
-                        <td style={{ background: facilityType === 'ULB' ? '#ecfdf5' : '#fff' }}>{formatVal(r.c1)}</td>
-                        <td>{formatVal(r.c2)}</td><td>{formatVal(r.c3)}</td><td>{formatVal(r.c4)}</td>
-                        <td>{formatVal(r.c5)}</td><td>{formatVal(r.c6)}</td><td><strong>{formatVal(r.total)}</strong></td>
+                    {visibleRows.map((row) => (
+                      <tr
+                        key={row.date}
+                        style={{
+                          borderBottom: '1px solid #e2e8f0'
+                        }}
+                      >
+                        <td>{row.date}</td>
+                        <td>{row.dayName}</td>
+                        <td
+                          style={{
+                            background:
+                              facilityType === 'ULB'
+                                ? '#ecfdf5'
+                                : '#fff'
+                          }}
+                        >
+                          {formatVal(row.c1)}
+                        </td>
+                        <td>{formatVal(row.c2)}</td>
+                        <td>{formatVal(row.c3)}</td>
+                        <td>{formatVal(row.c4)}</td>
+                        <td>{formatVal(row.c5)}</td>
+                        <td>{formatVal(row.c6)}</td>
+                        <td>
+                          <strong>{formatVal(row.total)}</strong>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -432,12 +1560,57 @@ export default function App() {
               </div>
 
               {!isPaid && (
-                <div style={{ border: '2px dashed #059669', background: '#ecfdf5', padding: '15px', textAlign: 'center', marginTop: '12px', borderRadius: '6px' }}>
+                <div
+                  style={{
+                    border: '2px dashed #059669',
+                    background: '#ecfdf5',
+                    padding: '15px',
+                    textAlign: 'center',
+                    marginTop: '12px',
+                    borderRadius: '6px'
+                  }}
+                >
                   <Lock style={{ color: '#059669' }} size={18} />
-                  <h4 style={{ margin: '4px 0', color: '#065f46', fontSize: '15px' }}>Preview Locked (Days 1–5 Only)</h4>
-                  <p style={{ margin: '4px 0 10px 0', color: '#047857', fontSize: '13px' }}>Pay ₹{getPrice()} to unlock complete dataset and multi-tab Excel (.xlsx) file.</p>
-                  <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 20px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
-                    {isProcessing ? 'Connecting...' : `Pay ₹${getPrice()} & Download Complete File`}
+
+                  <h4
+                    style={{
+                      margin: '4px 0',
+                      color: '#065f46',
+                      fontSize: '15px'
+                    }}
+                  >
+                    Preview Locked (Days 1–5 Only)
+                  </h4>
+
+                  <p
+                    style={{
+                      margin: '4px 0 10px 0',
+                      color: '#047857',
+                      fontSize: '13px'
+                    }}
+                  >
+                    Pay ₹{getPrice()} to unlock the complete dataset and
+                    multi-tab Excel (.xlsx) file.
+                  </p>
+
+                  <button
+                    onClick={handlePayment}
+                    disabled={isProcessing}
+                    style={{
+                      padding: '10px 20px',
+                      background: '#059669',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      opacity: isProcessing ? 0.7 : 1
+                    }}
+                  >
+                    {isProcessing
+                      ? 'Connecting...'
+                      : `Pay ₹${getPrice()} & Download Complete File`}
                   </button>
                 </div>
               )}
@@ -446,15 +1619,48 @@ export default function App() {
         </div>
       </div>
 
-      <div style={{ marginTop: '30px', padding: '15px 10px', borderTop: '1px solid #cbd5e1', textAlign: 'center', fontSize: '11px', color: '#64748b', lineHeight: '1.5', background: '#ffffff' }}>
+      <div
+        style={{
+          marginTop: '30px',
+          padding: '15px 10px',
+          borderTop: '1px solid #cbd5e1',
+          textAlign: 'center',
+          fontSize: '11px',
+          color: '#64748b',
+          lineHeight: '1.5',
+          background: '#ffffff'
+        }}
+      >
         <p style={{ margin: '0 0 6px 0' }}>
-          <strong>Disclaimer:</strong> This web tool is developed strictly for educational, research, and estimation purposes. Output datasets serve as decision-support models for solid waste management planning.
+          <strong>Disclaimer:</strong> This tool is developed for educational,
+          research, planning and estimation purposes. Generated datasets are
+          model-based estimates and are not a substitute for actual statutory
+          records, weighbridge records or field measurements.
         </p>
+
         <p style={{ margin: 0 }}>
-          Engineered & Maintained by <strong>Team CRF</strong> — <a href="https://www.consilienceresearch.in/" target="_blank" rel="noopener noreferrer" style={{ color: '#059669', fontWeight: 'bold', textDecoration: 'none' }}>Consilience Research Foundation</a>, an Urban & Infrastructure Research Consultancy Institute.
+          Copyright © 2026 CRF | Engineered & Maintained by{' '}
+          <strong>Team CRF</strong> —{' '}
+          <a
+            href="https://www.consilienceresearch.in/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              color: '#059669',
+              fontWeight: 'bold',
+              textDecoration: 'none'
+            }}
+          >
+            Consilience Research Foundation
+          </a>
+          , an Urban & Infrastructure Research Consultancy Institute.
         </p>
       </div>
-
     </div>
   );
 }
+'''
+
+path = Path('/mnt/data/App_corrected.jsx')
+path.write_text(code, encoding='utf-8')
+print(f"Created {path} with {len(code.splitlines())} lines.")
