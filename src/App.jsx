@@ -303,7 +303,7 @@ export default function App() {
               </span>
               <h1 style={{ fontSize: '22px', margin: '6px 0 2px 0', fontWeight: '800' }}>
                 <Building2 size={22} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लोगबुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}
+                {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लॉगबुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}
               </h1>
               <p style={{ fontSize: '13px', margin: 0, color: '#a7f3d0' }}>
                 {lang === 'hi' ? '4-स्ट्रीम अपशिष्ट पृथक्कीकरण एवं अखिल भारतीय राज्यवार एडजस्टमेंट टूल' : 'Automated 4-Stream Logbook Engine with Pan-India State-Wise Calibration'}
@@ -480,7 +480,7 @@ export default function App() {
             </div>
 
             <button type="submit" style={{ width: '100%', padding: '12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
-              {lang === 'hi' ? 'लोगबुक जनरेट करें →' : 'Generate Dataset →'}
+              {lang === 'hi' ? 'लॉगबुक जनरेट करें →' : 'Generate Dataset →'}
             </button>
           </form>
 
