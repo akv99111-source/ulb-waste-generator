@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
-import { Building2, Download, CreditCard, Lock, Globe, Check } from 'lucide-react';
+import { Building2, Download, Lock, Globe, Check } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 const MONTH_NAMES = [
-  { id: 1, shortEn: 'Jan', shortHi: 'जनवरी' },
-  { id: 2, shortEn: 'Feb', shortHi: 'फरवरी' },
-  { id: 3, shortEn: 'Mar', shortHi: 'मार्च' },
-  { id: 4, shortEn: 'Apr', shortHi: 'अप्रैल' },
-  { id: 5, shortEn: 'May', shortHi: 'मई' },
-  { id: 6, shortEn: 'Jun', shortHi: 'जून' },
-  { id: 7, shortEn: 'Jul', shortHi: 'जुलाई' },
-  { id: 8, shortEn: 'Aug', shortHi: 'अगस्त' },
-  { id: 9, shortEn: 'Sep', shortHi: 'सितंबर' },
-  { id: 10, shortEn: 'Oct', shortHi: 'अक्टूबर' },
-  { id: 11, shortEn: 'Nov', shortHi: 'नवंबर' },
-  { id: 12, shortEn: 'Dec', shortHi: 'दिसंबर' }
+  { id: 1, shortEn: 'Jan', shortHi: 'जनवरी', fullEn: 'January' },
+  { id: 2, shortEn: 'Feb', shortHi: 'फरवरी', fullEn: 'February' },
+  { id: 3, shortEn: 'Mar', shortHi: 'मार्च', fullEn: 'March' },
+  { id: 4, shortEn: 'Apr', shortHi: 'अप्रैल', fullEn: 'April' },
+  { id: 5, shortEn: 'May', shortHi: 'मई', fullEn: 'May' },
+  { id: 6, shortEn: 'Jun', shortHi: 'जून', fullEn: 'June' },
+  { id: 7, shortEn: 'Jul', shortHi: 'जुलाई', fullEn: 'July' },
+  { id: 8, shortEn: 'Aug', shortHi: 'अगस्त', fullEn: 'August' },
+  { id: 9, shortEn: 'Sep', shortHi: 'सितंबर', fullEn: 'September' },
+  { id: 10, shortEn: 'Oct', shortHi: 'अक्टूबर', fullEn: 'October' },
+  { id: 11, shortEn: 'Nov', shortHi: 'नवंबर', fullEn: 'November' },
+  { id: 12, shortEn: 'Dec', shortHi: 'दिसंबर', fullEn: 'December' }
 ];
 
 export default function App() {
@@ -32,7 +33,11 @@ export default function App() {
   const [selectedMonths, setSelectedMonths] = useState([10]);
 
   const [displayUnit, setDisplayUnit] = useState('Tons');
-  const [generatedData, setGeneratedData] = useState(null);
+  
+  // Data stored per month: { [monthId]: [rows] }
+  const [generatedMonthlyData, setGeneratedMonthlyData] = useState(null);
+  const [activeTabMonth, setActiveTabMonth] = useState(null);
+
   const [isPaid, setIsPaid] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -71,12 +76,12 @@ export default function App() {
     e.preventDefault();
     setIsPaid(false);
 
-    let logs = [];
+    let monthlyDataMap = {};
 
     selectedMonths.forEach((calcMonth) => {
       let daysInMonth = [1, 3, 5, 7, 8, 10, 12].includes(calcMonth) ? 31 : (calcMonth === 2 ? 28 : 30);
-
       let targetDailyTons = 0;
+
       if (facilityType === 'ULB') {
         if (ulbFixedTons && parseFloat(ulbFixedTons) > 0) {
           targetDailyTons = parseFloat(ulbFixedTons);
@@ -87,6 +92,7 @@ export default function App() {
         targetDailyTons = parseFloat(mrfDailyDryTons);
       }
 
+      let monthLogs = [];
       for (let day = 1; day <= daysInMonth; day++) {
         const currentDate = new Date(startYear, calcMonth - 1, day);
         const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'short' });
@@ -102,7 +108,7 @@ export default function App() {
           const sumRatios = rawRatios.reduce((a, b) => a + b, 0);
           const norm = rawRatios.map(r => r / sumRatios);
 
-          logs.push({
+          monthLogs.push({
             date: currentDate.toISOString().split('T')[0],
             dayName,
             c1: parseFloat((dailyTotal * norm[0]).toFixed(2)),
@@ -119,7 +125,7 @@ export default function App() {
           const sumRatios = rawRatios.reduce((a, b) => a + b, 0);
           const norm = rawRatios.map(r => r / sumRatios);
 
-          logs.push({
+          monthLogs.push({
             date: currentDate.toISOString().split('T')[0],
             dayName,
             c1: parseFloat((dailyTotal * norm[0]).toFixed(2)),
@@ -132,9 +138,11 @@ export default function App() {
           });
         }
       }
+      monthlyDataMap[calcMonth] = monthLogs;
     });
 
-    setGeneratedData(logs);
+    setGeneratedMonthlyData(monthlyDataMap);
+    setActiveTabMonth(selectedMonths[0]);
   };
 
   const handlePayment = async () => {
@@ -160,12 +168,12 @@ export default function App() {
         amount: orderData.amount,
         currency: orderData.currency,
         name: 'ULB / MRF Logbook Engine',
-        description: `${facilityType} Logbook (${selectedMonths.length} Month/s) - ${name}`,
+        description: `${facilityType} Multi-Tab Excel (${selectedMonths.length} Month/s) - ${name}`,
         order_id: orderData.id,
         handler: function () {
           setIsPaid(true);
           setIsProcessing(false);
-          downloadCSV();
+          downloadMultiSheetExcel();
         },
         theme: { color: '#059669' },
       };
@@ -180,10 +188,10 @@ export default function App() {
 
   const formatVal = (val) => displayUnit === 'kg' ? Math.round(val * 1000) : val.toFixed(2);
 
-  const downloadCSV = () => {
-    if (!generatedData) return;
+  const downloadMultiSheetExcel = () => {
+    if (!generatedMonthlyData) return;
     const unitLabel = displayUnit === 'kg' ? 'kg' : 'Tons';
-    
+
     let headers = [];
     if (facilityType === 'ULB') {
       headers = ["Date", "Day", `Wet (${unitLabel})`, `Plastic (${unitLabel})`, `Textile (${unitLabel})`, `C&D (${unitLabel})`, `Hazardous (${unitLabel})`, `Inerts (${unitLabel})`, `Total (${unitLabel})` ];
@@ -191,24 +199,33 @@ export default function App() {
       headers = ["Date", "Day", `PET Plastics (${unitLabel})`, `HDPE/Hard Plastic (${unitLabel})`, `Cardboard/Paper (${unitLabel})`, `RDF/Combustibles (${unitLabel})`, `Glass/Metal (${unitLabel})`, `Rejects (${unitLabel})`, `Total Dry Waste (${unitLabel})` ];
     }
 
-    const rows = generatedData.map(r => [
-      r.date, r.dayName, formatVal(r.c1), formatVal(r.c2), formatVal(r.c3), formatVal(r.c4), formatVal(r.c5), formatVal(r.c6), formatVal(r.total)
-    ]);
+    const workbook = XLSX.utils.book_new();
 
-    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${name.replace(/\s+/g, '_')}_Logbook_${selectedMonths.length}M_${displayUnit}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    selectedMonths.forEach((mId) => {
+      const monthName = MONTH_NAMES.find(m => m.id === mId)?.fullEn || `Month_${mId}`;
+      const monthRows = generatedMonthlyData[mId] || [];
+
+      const sheetData = [
+        headers,
+        ...monthRows.map(r => [
+          r.date, r.dayName, formatVal(r.c1), formatVal(r.c2), formatVal(r.c3), formatVal(r.c4), formatVal(r.c5), formatVal(r.c6), formatVal(r.total)
+        ])
+      ];
+
+      const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
+      XLSX.utils.book_append_sheet(workbook, worksheet, monthName);
+    });
+
+    XLSX.writeFile(workbook, `${name.replace(/\s+/g, '_')}_Logbook_${selectedMonths.length}Months_${displayUnit}.xlsx`);
   };
 
-  const visibleRows = generatedData ? (isPaid ? generatedData : generatedData.slice(0, 5)) : [];
+  const activeRows = (generatedMonthlyData && activeTabMonth) ? generatedMonthlyData[activeTabMonth] : [];
+  const visibleRows = isPaid ? activeRows : activeRows.slice(0, 5);
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1050px', margin: '0 auto' }}>
+      
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2><Building2 /> {lang === 'hi' ? 'यूएलबी एवं एमआरएफ अपशिष्ट लोगबुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}</h2>
         <button onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -216,6 +233,7 @@ export default function App() {
         </button>
       </div>
 
+      {/* Form */}
       <form onSubmit={handleGenerate} style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
         <div style={{ marginBottom: '15px' }}>
           <label style={{ fontWeight: 'bold', marginRight: '15px' }}>{lang === 'hi' ? 'सुविधा का प्रकार:' : 'Facility Type:'}</label>
@@ -237,23 +255,12 @@ export default function App() {
             <>
               <div>
                 <label>{lang === 'hi' ? 'जनसंख्या (Population)' : 'Population'}</label>
-                <input 
-                  style={{ width: '100%', padding: '6px', background: ulbFixedTons ? '#e2e8f0' : '#fff' }} 
-                  type="number" 
-                  disabled={!!ulbFixedTons} 
-                  value={population} 
-                  onChange={(e) => setPopulation(Number(e.target.value))} 
-                />
+                <input style={{ width: '100%', padding: '6px', background: ulbFixedTons ? '#e2e8f0' : '#fff' }} type="number" disabled={!!ulbFixedTons} value={population} onChange={(e) => setPopulation(Number(e.target.value))} />
               </div>
 
               <div>
                 <label>{lang === 'hi' ? 'प्रतिव्यक्ति अपशिष्ट (g/दिन)' : 'Per Capita Rate'}</label>
-                <select 
-                  style={{ width: '100%', padding: '6px', background: ulbFixedTons ? '#e2e8f0' : '#fff' }} 
-                  disabled={!!ulbFixedTons} 
-                  value={perCapita} 
-                  onChange={(e) => setPerCapita(e.target.value)}
-                >
+                <select style={{ width: '100%', padding: '6px', background: ulbFixedTons ? '#e2e8f0' : '#fff' }} disabled={!!ulbFixedTons} value={perCapita} onChange={(e) => setPerCapita(e.target.value)}>
                   <option value="300">300 g/capita/day</option>
                   <option value="350">350 g/capita/day</option>
                   <option value="400">400 g/capita/day</option>
@@ -264,14 +271,7 @@ export default function App() {
 
               <div style={{ gridColumn: 'span 3' }}>
                 <label>{lang === 'hi' ? 'या सीधा कुल टन प्रति दिन दर्ज करें (ऑप्शनल Override)' : 'OR Enter Direct Total Tons/Day (Override)'}</label>
-                <input 
-                  style={{ width: '100%', padding: '6px' }} 
-                  type="number" 
-                  step="0.01" 
-                  placeholder={lang === 'hi' ? 'जनसंख्या का उपयोग करने के लिए इसे खाली छोड़ें' : 'Leave blank to use population calculation'} 
-                  value={ulbFixedTons} 
-                  onChange={(e) => setUlbFixedTons(e.target.value)} 
-                />
+                <input style={{ width: '100%', padding: '6px' }} type="number" step="0.01" placeholder={lang === 'hi' ? 'जनसंख्या का उपयोग करने के लिए इसे खाली छोड़ें' : 'Leave blank to use population calculation'} value={ulbFixedTons} onChange={(e) => setUlbFixedTons(e.target.value)} />
               </div>
             </>
           ) : (
@@ -294,11 +294,10 @@ export default function App() {
           </div>
         </div>
 
+        {/* Month Picker Buttons */}
         <div style={{ marginBottom: '15px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <label style={{ fontWeight: 'bold' }}>
-              {lang === 'hi' ? 'माह चुनें (अधिकतम 3 माह तक टिक करें):' : 'Select Months (Tick up to 3):'}
-            </label>
+            <label style={{ fontWeight: 'bold' }}>{lang === 'hi' ? 'माह चुनें (अधिकतम 3 माह तक टिक करें):' : 'Select Months (Tick up to 3):'}</label>
             <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#059669' }}>
               {selectedMonths.length} {lang === 'hi' ? 'माह चयनित' : 'Month/s Selected'} — {lang === 'hi' ? `शुल्क: ₹${getPrice()}` : `Total: ₹${getPrice()}`} 
               {selectedMonths.length === 3 && (lang === 'hi' ? ' (₹25 छूट लागू)' : ' (₹25 Discount Included)')}
@@ -314,18 +313,12 @@ export default function App() {
                   type="button"
                   onClick={() => toggleMonth(m.id)}
                   style={{
-                    padding: '8px 4px',
-                    borderRadius: '6px',
+                    padding: '8px 4px', borderRadius: '6px',
                     border: isSelected ? '2px solid #059669' : '1px solid #cbd5e1',
                     background: isSelected ? '#ecfdf5' : '#ffffff',
                     color: isSelected ? '#065f46' : '#334155',
                     fontWeight: isSelected ? 'bold' : 'normal',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    fontSize: '13px'
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '13px'
                   }}
                 >
                   {isSelected && <Check size={14} style={{ color: '#059669' }} />}
@@ -341,23 +334,50 @@ export default function App() {
         </button>
       </form>
 
-      {generatedData && (
+      {/* Dataset Output & Tab Navigation */}
+      {generatedMonthlyData && (
         <div>
+          {/* Month Tab Headers */}
+          <div style={{ display: 'flex', borderBottom: '2px solid #cbd5e1', marginBottom: '15px' }}>
+            {selectedMonths.map((mId) => {
+              const monthObj = MONTH_NAMES.find(m => m.id === mId);
+              const isActive = activeTabMonth === mId;
+              return (
+                <button
+                  key={mId}
+                  onClick={() => setActiveTabMonth(mId)}
+                  style={{
+                    padding: '10px 20px',
+                    border: 'none',
+                    borderBottom: isActive ? '3px solid #059669' : 'none',
+                    background: isActive ? '#ecfdf5' : 'transparent',
+                    fontWeight: isActive ? 'bold' : 'normal',
+                    color: isActive ? '#065f46' : '#64748b',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  {lang === 'hi' ? monthObj?.shortHi : monthObj?.fullEn}
+                </button>
+              );
+            })}
+          </div>
+
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <div>
-              <strong>{name}</strong> ({facilityType}) — <small>{selectedMonths.length} {lang === 'hi' ? 'माह लोगबुक' : 'Month/s Logbook'}</small>
+              <strong>{name}</strong> ({facilityType}) — <small>{MONTH_NAMES.find(m => m.id === activeTabMonth)?.fullEn} {startYear}</small>
             </div>
             <div>
               <button onClick={() => setDisplayUnit(displayUnit === 'Tons' ? 'kg' : 'Tons')} style={{ marginRight: '10px', padding: '6px 10px' }}>
                 {lang === 'hi' ? 'इकाई:' : 'Unit:'} {displayUnit}
               </button>
               {isPaid ? (
-                <button onClick={downloadCSV} style={{ padding: '8px 15px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                  <Download size={14} /> {lang === 'hi' ? 'सीएसवी एक्सपोर्ट करें' : 'Export CSV'}
+                <button onClick={downloadMultiSheetExcel} style={{ padding: '8px 15px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                  <Download size={14} /> {lang === 'hi' ? 'मल्टी-शीट एक्सल (.xlsx) एक्सपोर्ट करें' : 'Export Multi-Sheet Excel (.xlsx)'}
                 </button>
               ) : (
                 <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '8px 15px', background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                  {isProcessing ? 'Wait...' : `${lang === 'hi' ? `₹${getPrice()} भुगतान करें एवं डाउनलोड करें` : `Pay ₹${getPrice()} to Unlock & Download`}`}
+                  {isProcessing ? 'Wait...' : `${lang === 'hi' ? `₹${getPrice()} भुगतान करें एवं एक्सल डाउनलोड करें` : `Pay ₹${getPrice()} to Unlock & Download Excel`}`}
                 </button>
               )}
             </div>
@@ -397,13 +417,13 @@ export default function App() {
             <div style={{ border: '2px dashed #059669', background: '#ecfdf5', padding: '20px', textAlign: 'center', marginTop: '10px', borderRadius: '6px' }}>
               <Lock style={{ color: '#059669', marginBottom: '5px' }} />
               <h3 style={{ margin: '5px 0', color: '#065f46' }}>
-                {lang === 'hi' ? 'पूर्वावलोकन लॉक है (केवल 5 दिन दिख रहे हैं)' : 'Preview Locked (Showing Days 1 to 5)'}
+                {lang === 'hi' ? 'पूर्वावलोकन लॉक है (केवल शुरुआती 5 दिन दिख रहे हैं)' : 'Preview Locked (Showing Days 1 to 5)'}
               </h3>
               <p style={{ margin: '5px 0 15px 0', color: '#047857', fontSize: '14px' }}>
-                {lang === 'hi' ? `चयनित ${selectedMonths.length} माह (${generatedData.length} दिन) की पूर्ण लोगबुक के लिए ₹${getPrice()} का भुगतान करें।` : `Pay ₹${getPrice()} to unlock all ${generatedData.length} daily entries across your selected ${selectedMonths.length} month/s.`}
+                {lang === 'hi' ? `चयनित ${selectedMonths.length} माह की अलग-अलग शीट वाली एक्सल (.xlsx) फाइल डाउनलोड करने के लिए ₹${getPrice()} का भुगतान करें।` : `Pay ₹${getPrice()} to unlock all months and export a multi-sheet Excel file (.xlsx) with separate tabs.`}
               </p>
               <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 20px', background: '#059669', color: '#fff', border: 'none', borderRadius: '5px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}>
-                {isProcessing ? 'Connecting...' : `${lang === 'hi' ? `₹${getPrice()} का भुगतान करें` : `Pay ₹${getPrice()} & Download Complete File`}`}
+                {isProcessing ? 'Connecting...' : `${lang === 'hi' ? `₹${getPrice()} का भुगतान करें` : `Pay ₹${getPrice()} & Download Excel File`}`}
               </button>
             </div>
           )}
