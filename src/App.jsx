@@ -61,21 +61,15 @@ export default function App() {
     return 50;
   };
 
-  // Seasonal Fraction Logic for ULB & MRF
   const getSeasonalFractions = (monthId, type) => {
     if (type === 'ULB') {
-      // Summer (May-Jul): Fruit season (Mangoes), high wet waste (~60%)
       if ([5, 6, 7].includes(monthId)) return [0.60, 0.08, 0.03, 0.06, 0.02, 0.21];
-      // Monsoon (Aug-Sep): High moisture (~57%)
       if ([8, 9].includes(monthId)) return [0.57, 0.09, 0.03, 0.06, 0.02, 0.23];
-      // Winter (Nov-Feb): Moderate wet (~50%), higher dry packaging
       if ([11, 12, 1, 2].includes(monthId)) return [0.50, 0.12, 0.05, 0.08, 0.02, 0.23];
-      // Spring/Autumn (Mar-Apr, Oct): Standard baseline (~54%)
       return [0.54, 0.10, 0.04, 0.08, 0.02, 0.22];
     } else {
-      // MRF Dry Waste Bifurcation
-      if ([5, 6, 7].includes(monthId)) return [0.25, 0.15, 0.20, 0.22, 0.08, 0.10]; // High PET/Beverage
-      return [0.20, 0.15, 0.25, 0.20, 0.10, 0.10]; // Standard baseline
+      if ([5, 6, 7].includes(monthId)) return [0.25, 0.15, 0.20, 0.22, 0.08, 0.10];
+      return [0.20, 0.15, 0.25, 0.20, 0.10, 0.10];
     }
   };
 
@@ -222,231 +216,266 @@ export default function App() {
   const visibleRows = isPaid ? activeRows : activeRows.slice(0, 5);
 
   return (
-    <div style={{ padding: '12px', fontFamily: 'sans-serif', maxWidth: '1050px', margin: '0 auto' }}>
+    <div style={{ fontFamily: 'sans-serif', margin: 0, background: '#f8fafc', minHeight: '100vh' }}>
       
-      {/* Responsive Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
-        <h2 style={{ fontSize: '1.25rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Building2 size={22} /> {lang === 'hi' ? 'यूएलबी एवं एमआरएफ अपशिष्ट लोगबुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}
-        </h2>
-        <button onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#fff' }}>
-          <Globe size={16} /> {lang === 'hi' ? 'English' : 'हिंदी'}
-        </button>
+      {/* 
+        -------------------------------------------------------------
+        HERO BANNER SECTION (Header area for the website)
+        -------------------------------------------------------------
+      */}
+      <div style={{
+        background: 'linear-gradient(135deg, #064e3b 0%, #047857 100%)',
+        color: '#ffffff',
+        padding: '25px 15px',
+        borderBottom: '1px solid #065f46',
+        textAlign: 'left'
+      }}>
+        <div style={{ maxWidth: '1050px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
+          
+          {/* Main Title & Slogan */}
+          <div>
+            <div style={{ display: 'inline-block', background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
+              {lang === 'hi' ? 'SWM 2016 दिशानिर्देशों के अनुरूप' : 'SWM 2016 Guidelines Compliant'}
+            </div>
+            <h1 style={{ fontSize: '24px', margin: '0 0 6px 0', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Building2 size={26} /> {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लोगबुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}
+            </h1>
+            <p style={{ fontSize: '14px', margin: 0, color: '#a7f3d0' }}>
+              {lang === 'hi' ? 'उत्तर भारत एवं यूपी के लिए विशिष्ट सीजनल और बहु-शहरी कचरा लोगबुक टूल' : 'Seasonal Waste Logbook Generation Engine for North Indian Municipal Bodies & MRF Centers'}
+            </p>
+          </div>
+
+          {/* Language Toggle Button */}
+          <button onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{
+            padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', 
+            borderRadius: '6px', border: 'none', background: '#ffffff', color: '#047857', fontWeight: 'bold', fontSize: '14px'
+          }}>
+            <Globe size={18} /> {lang === 'hi' ? 'English Interface' : 'हिंदी इंटरफेस'}
+          </button>
+
+        </div>
       </div>
+      {/* ------------------------------------------------------------- */}
 
-      {/* Form Container */}
-      <form onSubmit={handleGenerate} style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '20px' }}>
+
+      {/* Main Content Area */}
+      <div style={{ padding: '20px', maxWidth: '1050px', margin: '0 auto' }}>
         
-        {/* Facility Selector */}
-        <div style={{ marginBottom: '15px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <label style={{ fontWeight: 'bold' }}>{lang === 'hi' ? 'सुविधा का प्रकार:' : 'Facility Type:'}</label>
-          <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <input type="radio" name="facility" value="ULB" checked={facilityType === 'ULB'} onChange={() => setFacilityType('ULB')} /> {lang === 'hi' ? 'नगर निकाय (ULB)' : 'Urban Local Body (ULB)'}
-          </label>
-          <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <input type="radio" name="facility" value="MRF" checked={facilityType === 'MRF'} onChange={() => setFacilityType('MRF')} /> {lang === 'hi' ? 'एमआरएफ केंद्र (MRF Centre)' : 'MRF Centre'}
-          </label>
-        </div>
-
-        {/* Inputs Responsive Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '12px', marginBottom: '15px' }}>
-          <div>
-            <label style={{ fontSize: '13px', fontWeight: '500' }}>{lang === 'hi' ? 'निकाय / एमआरएफ का नाम' : 'ULB / MRF Name'}</label>
-            <input style={{ width: '100%', padding: '8px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #cbd5e1' }} type="text" required value={name} onChange={(e) => setName(e.target.value)} />
+        {/* Form Container */}
+        <form onSubmit={handleGenerate} style={{ background: '#ffffff', padding: '18px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '25px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          
+          {/* Facility Selector */}
+          <div style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+            <label style={{ fontWeight: 'bold', fontSize: '15px' }}>{lang === 'hi' ? 'सुविधा का प्रकार चुनें:' : 'Select Facility Type:'}</label>
+            <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <input type="radio" name="facility" value="ULB" checked={facilityType === 'ULB'} onChange={() => setFacilityType('ULB')} style={{ transform: 'scale(1.1)' }}/> {lang === 'hi' ? 'नगर निकाय (ULB)' : 'Urban Local Body (ULB)'}
+            </label>
+            <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <input type="radio" name="facility" value="MRF" checked={facilityType === 'MRF'} onChange={() => setFacilityType('MRF')} style={{ transform: 'scale(1.1)' }}/> {lang === 'hi' ? 'एमआरएफ केंद्र (MRF Centre)' : 'MRF Centre'}
+            </label>
           </div>
 
-          {facilityType === 'ULB' ? (
-            <>
-              <div>
-                <label style={{ fontSize: '13px', fontWeight: '500' }}>{lang === 'hi' ? 'जनसंख्या (Population)' : 'Population'}</label>
-                <input style={{ width: '100%', padding: '8px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #cbd5e1', background: ulbFixedTons ? '#e2e8f0' : '#fff' }} type="number" disabled={!!ulbFixedTons} value={population} onChange={(e) => setPopulation(Number(e.target.value))} />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '13px', fontWeight: '500' }}>{lang === 'hi' ? 'प्रतिव्यक्ति अपशिष्ट (g/दिन)' : 'Per Capita Rate'}</label>
-                <select style={{ width: '100%', padding: '8px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #cbd5e1', background: ulbFixedTons ? '#e2e8f0' : '#fff' }} disabled={!!ulbFixedTons} value={perCapita} onChange={(e) => setPerCapita(e.target.value)}>
-                  <option value="300">300 g/capita/day</option>
-                  <option value="350">350 g/capita/day</option>
-                  <option value="400">400 g/capita/day</option>
-                  <option value="450">450 g/capita/day</option>
-                  <option value="500">500 g/capita/day</option>
-                </select>
-              </div>
-
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={{ fontSize: '13px', fontWeight: '500' }}>{lang === 'hi' ? 'या सीधा कुल टन प्रति दिन दर्ज करें (ऑप्शनल Override)' : 'OR Enter Direct Total Tons/Day (Override)'}</label>
-                <input style={{ width: '100%', padding: '8px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #cbd5e1' }} type="number" step="0.01" placeholder={lang === 'hi' ? 'जनसंख्या का उपयोग करने के लिए इसे खाली छोड़ें' : 'Leave blank to use population calculation'} value={ulbFixedTons} onChange={(e) => setUlbFixedTons(e.target.value)} />
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <label style={{ fontSize: '13px', fontWeight: '500' }}>{lang === 'hi' ? 'औसत सूखा कचरा आवक (टन/दिन)' : 'Avg Daily Dry Waste (Tons/Day)'}</label>
-                <input style={{ width: '100%', padding: '8px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #cbd5e1' }} type="number" step="0.01" required value={mrfDailyDryTons} onChange={(e) => setMrfDailyDryTons(e.target.value)} />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '13px', fontWeight: '500' }}>{lang === 'hi' ? 'एमआरएफ की कुल क्षमता (टन/दिन)' : 'MRF Max Capacity (Tons/Day)'}</label>
-                <input style={{ width: '100%', padding: '8px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #cbd5e1' }} type="number" step="0.01" required value={mrfMaxCapacityTons} onChange={(e) => setMrfMaxCapacityTons(e.target.value)} />
-              </div>
-            </>
-          )}
-
-          <div>
-            <label style={{ fontSize: '13px', fontWeight: '500' }}>{lang === 'hi' ? 'वर्ष (Year)' : 'Year'}</label>
-            <input style={{ width: '100%', padding: '8px', boxSizing: 'border-box', borderRadius: '4px', border: '1px solid #cbd5e1' }} type="number" value={startYear} onChange={(e) => setStartYear(Number(e.target.value))} />
-          </div>
-        </div>
-
-        {/* Responsive Month Picker */}
-        <div style={{ marginBottom: '15px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '5px' }}>
-            <label style={{ fontWeight: 'bold', fontSize: '14px' }}>{lang === 'hi' ? 'माह चुनें (अधिकतम 3 माह तक टिक करें):' : 'Select Months (Tick up to 3):'}</label>
-            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#059669' }}>
-              {selectedMonths.length} {lang === 'hi' ? 'माह चयनित' : 'Month/s Selected'} — {lang === 'hi' ? `शुल्क: ₹${getPrice()}` : `Total: ₹${getPrice()}`} 
-              {selectedMonths.length === 3 && (lang === 'hi' ? ' (₹25 छूट लागू)' : ' (₹25 Discount Included)')}
-            </span>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '6px' }}>
-            {MONTH_NAMES.map((m) => {
-              const isSelected = selectedMonths.includes(m.id);
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => toggleMonth(m.id)}
-                  style={{
-                    padding: '8px 2px', borderRadius: '6px',
-                    border: isSelected ? '2px solid #059669' : '1px solid #cbd5e1',
-                    background: isSelected ? '#ecfdf5' : '#ffffff',
-                    color: isSelected ? '#065f46' : '#334155',
-                    fontWeight: isSelected ? 'bold' : 'normal',
-                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px', fontSize: '12px'
-                  }}
-                >
-                  {isSelected && <Check size={12} style={{ color: '#059669' }} />}
-                  {lang === 'hi' ? m.shortHi : m.shortEn}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <button type="submit" style={{ width: '100%', padding: '12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
-          {lang === 'hi' ? 'लोगबुक जनरेट करें' : 'Generate Dataset'}
-        </button>
-      </form>
-
-      {/* Dataset Output & Knowledge Guidance */}
-      {generatedMonthlyData && (
-        <div>
-          {/* Knowledge Info Box */}
-          <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '12px', borderRadius: '6px', marginBottom: '15px', fontSize: '13px', color: '#1e40af' }}>
-            <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-              <Info size={16} /> {lang === 'hi' ? 'सीजनल बदलाव और दिशानिर्देश जानकारी:' : 'Seasonal Variations & Guidance Notes:'}
-            </div>
-            <ul style={{ margin: 0, paddingLeft: '20px' }}>
-              <li>{lang === 'hi' ? 'उत्तर भारत एवं यूपी में मौसम (गर्मियों में आम/फलों का सीजन तथा मॉनसून) के अनुसार गीले कचरे (Wet Waste) का अनुपात 55-60% तक बदलता है।' : 'In North India & UP, Wet Waste proportion varies up to 55-60% depending on seasonal fruit availability (Mango season) and monsoon moisture.'}</li>
-              <li>{lang === 'hi' ? 'सॉलिड वेस्ट मैनेजमेंट गाइडलाइंस (SWM 2016) के तहत ऑडिट अनुपालन हेतु हर महीने की स्वतंत्र लोगबुक (Excel Sheet) अनिवार्य है।' : 'Per SWM 2016 guidelines, generating independent monthly sheets is mandatory for solid waste auditing.'}</li>
-            </ul>
-          </div>
-
-          {/* Month Tab Headers (Scrollable on Mobile) */}
-          <div style={{ display: 'flex', borderBottom: '2px solid #cbd5e1', marginBottom: '15px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
-            {selectedMonths.map((mId) => {
-              const monthObj = MONTH_NAMES.find(m => m.id === mId);
-              const isActive = activeTabMonth === mId;
-              return (
-                <button
-                  key={mId}
-                  onClick={() => setActiveTabMonth(mId)}
-                  style={{
-                    padding: '10px 18px',
-                    border: 'none',
-                    borderBottom: isActive ? '3px solid #059669' : 'none',
-                    background: isActive ? '#ecfdf5' : 'transparent',
-                    fontWeight: isActive ? 'bold' : 'normal',
-                    color: isActive ? '#065f46' : '#64748b',
-                    cursor: 'pointer',
-                    fontSize: '14px'
-                  }}
-                >
-                  {lang === 'hi' ? monthObj?.shortHi : monthObj?.fullEn}
-                </button>
-              );
-            })}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
+          {/* Inputs Responsive Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px', marginBottom: '18px' }}>
             <div>
-              <strong>{name}</strong> ({facilityType}) — <small>{MONTH_NAMES.find(m => m.id === activeTabMonth)?.fullEn} {startYear}</small>
+              <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'hi' ? 'निकाय / एमआरएफ का नाम' : 'Name of Municipal Body / MRF Centre'}</label>
+              <input style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px' }} type="text" required value={name} onChange={(e) => setName(e.target.value)} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <button onClick={() => setDisplayUnit(displayUnit === 'Tons' ? 'kg' : 'Tons')} style={{ padding: '6px 10px', fontSize: '12px' }}>
-                {lang === 'hi' ? 'इकाई:' : 'Unit:'} {displayUnit}
-              </button>
-              {isPaid ? (
-                <button onClick={downloadMultiSheetExcel} style={{ padding: '8px 12px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
-                  <Download size={14} /> {lang === 'hi' ? 'मल्टी-शीट एक्सल (.xlsx)' : 'Export Excel (.xlsx)'}
-                </button>
-              ) : (
-                <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '8px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
-                  {isProcessing ? 'Wait...' : `${lang === 'hi' ? `₹${getPrice()} भुगतान व डाउनलोड` : `Pay ₹${getPrice()} to Unlock`}`}
-                </button>
-              )}
+
+            {facilityType === 'ULB' ? (
+              <>
+                <div>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'hi' ? 'अनुमानित जनसंख्या (Population)' : 'Population'}</label>
+                  <input style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', background: ulbFixedTons ? '#e2e8f0' : '#fff' }} type="number" disabled={!!ulbFixedTons} value={population} onChange={(e) => setPopulation(Number(e.target.value))} />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'hi' ? 'प्रतिव्यक्ति अपशिष्ट (g/दिन)' : 'Per Capita Waste Rate'}</label>
+                  <select style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', background: ulbFixedTons ? '#e2e8f0' : '#fff' }} disabled={!!ulbFixedTons} value={perCapita} onChange={(e) => setPerCapita(e.target.value)}>
+                    <option value="300">300 g/capita/day</option>
+                    <option value="350">350 g/capita/day</option>
+                    <option value="400">400 g/capita/day</option>
+                    <option value="450">450 g/capita/day</option>
+                    <option value="500">500 g/capita/day</option>
+                  </select>
+                </div>
+
+                <div style={{ gridColumn: '1 / -1', background: '#f1f5f9', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'hi' ? 'या सीधा कुल टन प्रति दिन दर्ज करें (ऑप्शनल Override)' : 'OR Enter Direct Total Tons/Day (Override)'}</label>
+                  <input style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px' }} type="number" step="0.01" placeholder={lang === 'hi' ? 'जनसंख्या का उपयोग करने के लिए इसे खाली छोड़ें' : 'Leave blank to use population calculation'} value={ulbFixedTons} onChange={(e) => setUlbFixedTons(e.target.value)} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'hi' ? 'औसत सूखा कचरा आवक (टन/दिन)' : 'Avg Daily Dry Waste Input (Tons/Day)'}</label>
+                  <input style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px' }} type="number" step="0.01" required value={mrfDailyDryTons} onChange={(e) => setMrfDailyDryTons(e.target.value)} />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'hi' ? 'एमआरएफ की कुल क्षमता (टन/दिन)' : 'MRF Max Capacity (Tons/Day)'}</label>
+                  <input style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px' }} type="number" step="0.01" required value={mrfMaxCapacityTons} onChange={(e) => setMrfMaxCapacityTons(e.target.value)} />
+                </div>
+              </>
+            )}
+
+            <div>
+              <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'hi' ? 'वर्ष चुनें (Year)' : 'Choose Year'}</label>
+              <input style={{ width: '100%', padding: '10px', boxSizing: 'border-box', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px' }} type="number" value={startYear} onChange={(e) => setStartYear(Number(e.target.value))} />
             </div>
           </div>
 
-          {/* Table Container with Horizontal Scroll for Mobile */}
-          <div style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}>
-            <table cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '12px', minWidth: '600px' }}>
-              <thead>
-                <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-                  <th>Date</th><th>Day</th>
-                  {facilityType === 'ULB' ? (
-                    <>
-                      <th>Wet ({displayUnit})</th><th>Plastic ({displayUnit})</th><th>Textile ({displayUnit})</th>
-                      <th>C&D ({displayUnit})</th><th>Hazardous ({displayUnit})</th><th>Inerts ({displayUnit})</th><th>Total ({displayUnit})</th>
-                    </>
-                  ) : (
-                    <>
-                      <th>PET ({displayUnit})</th><th>HDPE ({displayUnit})</th><th>Cardboard ({displayUnit})</th>
-                      <th>RDF ({displayUnit})</th><th>Glass/Metal ({displayUnit})</th><th>Rejects ({displayUnit})</th><th>Total Dry ({displayUnit})</th>
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {visibleRows.map((row, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td>{row.date}</td><td>{row.dayName}</td>
-                    <td>{formatVal(row.c1)}</td><td>{formatVal(row.c2)}</td>
-                    <td>{formatVal(row.c3)}</td><td>{formatVal(row.c4)}</td>
-                    <td>{formatVal(row.c5)}</td><td>{formatVal(row.c6)}</td>
-                    <td><strong>{formatVal(row.total)}</strong></td>
+          {/* Responsive Month Picker */}
+          <div style={{ marginBottom: '18px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '5px' }}>
+              <label style={{ fontWeight: 'bold', fontSize: '15px' }}>{lang === 'hi' ? 'माह चुनें (अधिकतम 3 माह तक टिक करें):' : 'Select Months (Tick up to 3):'}</label>
+              <span style={{ fontSize: '14px', fontWeight: 'bold', color: '#059669', background: '#ecfdf5', padding: '4px 10px', borderRadius: '20px' }}>
+                {selectedMonths.length} {lang === 'hi' ? 'माह चयनित' : 'Month/s Selected'} — {lang === 'hi' ? `शुल्क: ₹${getPrice()}` : `Total: ₹${getPrice()}`} 
+                {selectedMonths.length === 3 && (lang === 'hi' ? ' (₹25 छूट लागू)' : ' (₹25 Discount Included)')}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(85px, 1fr))', gap: '8px' }}>
+              {MONTH_NAMES.map((m) => {
+                const isSelected = selectedMonths.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => toggleMonth(m.id)}
+                    style={{
+                      padding: '10px 4px', borderRadius: '8px',
+                      border: isSelected ? '2px solid #059669' : '1px solid #cbd5e1',
+                      background: isSelected ? '#ecfdf5' : '#ffffff',
+                      color: isSelected ? '#065f46' : '#334155',
+                      fontWeight: isSelected ? 'bold' : 'normal',
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', fontSize: '13px'
+                    }}
+                  >
+                    {isSelected && <Check size={14} style={{ color: '#059669' }} />}
+                    {lang === 'hi' ? m.shortHi : m.shortEn}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <button type="submit" style={{ width: '100%', padding: '14px', background: '#059669', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }}>
+            {lang === 'hi' ? 'लोगबुक जनरेट करें →' : 'Generate Dataset Now →'}
+          </button>
+        </form>
+
+        {/* Dataset Output & Knowledge Guidance */}
+        {generatedMonthlyData && (
+          <div style={{ background: '#ffffff', padding: '18px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
+            {/* Knowledge Info Box */}
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '15px', borderRadius: '8px', marginBottom: '18px', fontSize: '14px', color: '#1e40af', lineHeight: '1.5' }}>
+              <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <Info size={18} /> {lang === 'hi' ? 'सीजनल कचरा बदलाव और दिशानिर्देश जानकारी:' : 'Seasonal Variations & Compliance Guidance:'}
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                <li>{lang === 'hi' ? 'उत्तर भारत एवं यूपी में मौसम (गर्मियों में आम/फलों का सीजन तथा मॉनसून) के अनुसार गीले कचरे (Wet Waste) का अनुपात 55-60% तक बदलता है। इस लोगबुक में उस भिन्नता को स्वचालित रूप से समायोजित किया गया है।' : 'In North India & UP, Wet Waste proportion varies dynamically up to 55-60% based on fruit seasons (e.g., Mangoes) and monsoon moisture. This logbook automatically adjusts these fractions.'}</li>
+                <li>{lang === 'hi' ? 'ठोस अपशिष्ट प्रबंधन नियम (SWM 2016) के तहत ऑडिट अनुपालन के लिए हर माह की स्वतंत्र लोगबुक (Excel Sheet) अनिवार्य है।' : 'Per Solid Waste Management (SWM 2016) rulebook, maintaining separate monthly logbook sheets is mandatory for municipal auditing compliance.'}</li>
+              </ul>
+            </div>
+
+            {/* Month Tab Headers (Scrollable on Mobile) */}
+            <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '20px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+              {selectedMonths.map((mId) => {
+                const monthObj = MONTH_NAMES.find(m => m.id === mId);
+                const isActive = activeTabMonth === mId;
+                return (
+                  <button
+                    key={mId}
+                    onClick={() => setActiveTabMonth(mId)}
+                    style={{
+                      padding: '12px 20px',
+                      border: 'none',
+                      borderBottom: isActive ? '4px solid #059669' : 'none',
+                      background: isActive ? '#ecfdf5' : 'transparent',
+                      fontWeight: isActive ? 'bold' : 'normal',
+                      color: isActive ? '#065f46' : '#64748b',
+                      cursor: 'pointer',
+                      fontSize: '15px'
+                    }}
+                  >
+                    {lang === 'hi' ? monthObj?.shortHi : monthObj?.fullEn}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '10px' }}>
+              <div style={{ fontSize: '15px' }}>
+                <strong style={{ color: '#0f172a' }}>{name}</strong> — <small style={{ color: '#475569' }}>{MONTH_NAMES.find(m => m.id === activeTabMonth)?.fullEn} {startYear}</small>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button onClick={() => setDisplayUnit(displayUnit === 'Tons' ? 'kg' : 'Tons')} style={{ padding: '8px 12px', fontSize: '13px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#f1f5f9', cursor: 'pointer' }}>
+                  {lang === 'hi' ? 'इकाई:' : 'Unit:'} <strong>{displayUnit}</strong>
+                </button>
+                {isPaid ? (
+                  <button onClick={downloadMultiSheetExcel} style={{ padding: '10px 16px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
+                    <Download size={16} /> {lang === 'hi' ? 'मल्टी-शीट एक्सल (.xlsx) डाउनलोड' : 'Export Excel (.xlsx)'}
+                  </button>
+                ) : (
+                  <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 16px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
+                    {isProcessing ? 'Wait...' : `${lang === 'hi' ? `₹${getPrice()} भुगतान व अनलॉक` : `Pay ₹${getPrice()} & Unlock Now`}`}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Table Container with Horizontal Scroll for Mobile */}
+            <div style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#f8fafc' }}>
+              <table cellPadding="10" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', minWidth: '700px', background: '#ffffff' }}>
+                <thead>
+                  <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
+                    <th>Date</th><th>Day</th>
+                    {facilityType === 'ULB' ? (
+                      <>
+                        <th style={{ background: '#ecfdf5' }}>Wet ({displayUnit})</th><th>Plastic ({displayUnit})</th><th>Textile ({displayUnit})</th>
+                        <th>C&D ({displayUnit})</th><th>Hazardous ({displayUnit})</th><th>Inerts ({displayUnit})</th><th style={{ background: '#f1f5f9' }}>Total ({displayUnit})</th>
+                      </>
+                    ) : (
+                      <>
+                        <th>PET ({displayUnit})</th><th>HDPE ({displayUnit})</th><th>Cardboard ({displayUnit})</th>
+                        <th>RDF ({displayUnit})</th><th>Glass/Metal ({displayUnit})</th><th>Rejects ({displayUnit})</th><th>Total Dry ({displayUnit})</th>
+                      </>
+                    )}
                   </tr>
-                ))}
+                </thead>
+                <tbody>
+                  {visibleRows.map((row, idx) => (
+                    <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td>{row.date}</td><td>{row.dayName}</td>
+                      <td style={{ background: facilityType === 'ULB' ? '#ecfdf5' : '#fff' }}>{formatVal(row.c1)}</td><td>{formatVal(row.c2)}</td>
+                      <td>{formatVal(row.c3)}</td><td>{formatVal(row.c4)}</td>
+                      <td>{formatVal(row.c5)}</td><td>{formatVal(row.c6)}</td>
+                      <td><strong>{formatVal(row.total)}</strong></td>
+                    </tr>
+                  ))}
+                </tbody>
               </tbody>
             </table>
           </div>
 
           {!isPaid && (
-            <div style={{ border: '2px dashed #059669', background: '#ecfdf5', padding: '15px', textAlign: 'center', marginTop: '10px', borderRadius: '6px' }}>
-              <Lock style={{ color: '#059669', marginBottom: '5px' }} />
-              <h4 style={{ margin: '5px 0', color: '#065f46' }}>
-                {lang === 'hi' ? 'पूर्वावलोकन लॉक है (केवल शुरुआती 5 दिन दिख रहे हैं)' : 'Preview Locked (Showing Days 1 to 5)'}
+            <div style={{ border: '3px dashed #059669', background: '#ecfdf5', padding: '20px', textAlign: 'center', marginTop: '15px', borderRadius: '10px' }}>
+              <Lock style={{ color: '#059669', marginBottom: '8px' }} size={20} />
+              <h4 style={{ margin: '8px 0', color: '#065f46', fontSize: '16px' }}>
+                {lang === 'hi' ? 'पूर्वावलोकन लॉक है (केवल शुरुआती 5 दिन दिख रहे हैं)' : 'Preview Locked (Showing Days 1 to 5 only)'}
               </h4>
-              <p style={{ margin: '5px 0 12px 0', color: '#047857', fontSize: '13px' }}>
-                {lang === 'hi' ? `चयनित ${selectedMonths.length} माह की अलग-अलग शीट वाली एक्सल (.xlsx) फाइल के लिए ₹${getPrice()} का भुगतान करें।` : `Pay ₹${getPrice()} to unlock all months and export a multi-sheet Excel file (.xlsx) with separate tabs.`}
+              <p style={{ margin: '8px 0 15px 0', color: '#047857', fontSize: '14px', lineHeight: '1.4' }}>
+                {lang === 'hi' ? `चयनित ${selectedMonths.length} माह की अलग-अलग शीट वाली पूर्ण एक्सल (.xlsx) फाइल डाउनलोड करने के लिए ₹${getPrice()} का भुगतान करें।` : `Pay ₹${getPrice()} to unlock the full Multi-Sheet Excel file (.xlsx) featuring separate tabs for all ${selectedMonths.length} selected months.`}
               </p>
-              <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 18px', background: '#059669', color: '#fff', border: 'none', borderRadius: '5px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
-                {isProcessing ? 'Connecting...' : `${lang === 'hi' ? `₹${getPrice()} का भुगतान करें` : `Pay ₹${getPrice()} & Download Excel File`}`}
+              <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '12px 24px', background: '#059669', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }}>
+                {isProcessing ? 'Connecting...' : `${lang === 'hi' ? `₹${getPrice()} भुगतान व पूर्ण फाइल डाउनलोड करें` : `Pay ₹${getPrice()} & Download Complete File`}`}
               </button>
             </div>
           )}
         </div>
       )}
     </div>
-  );
+  </div>
+);
 }
