@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, Download, CreditCard, BarChart3, RefreshCw, Calculator } from 'lucide-react';
+import { Building2, Download, CreditCard, BarChart3, Lock } from 'lucide-react';
 
 export default function App() {
   const [ulbName, setUlbName] = useState('Nagar Palika Parishad');
@@ -97,7 +97,7 @@ export default function App() {
         amount: orderData.amount,
         currency: orderData.currency,
         name: 'ULB Logbook Generator',
-        description: `Waste Dataset Export: ${ulbName}`,
+        description: `Full Logbook Unlock: ${ulbName}`,
         order_id: orderData.id,
         handler: function () {
           setIsPaid(true);
@@ -140,6 +140,9 @@ export default function App() {
     document.body.removeChild(link);
   };
 
+  // Restrict displayed rows to first 5 if unpaid
+  const visibleRows = generatedData ? (isPaid ? generatedData : generatedData.slice(0, 5)) : [];
+
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '1000px', margin: '0 auto' }}>
       <h2><Building2 /> ULB Waste Logbook Generator</h2>
@@ -165,17 +168,19 @@ export default function App() {
 
       {generatedData && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <div><strong>{ulbName}</strong> — <small>{calcBasis}</small></div>
             <div>
               <button onClick={() => setDisplayUnit(displayUnit === 'Tons' ? 'kg' : 'Tons')} style={{ marginRight: '10px' }}>
                 Unit: {displayUnit}
               </button>
               {isPaid ? (
-                <button onClick={downloadCSV}><Download /> Export CSV</button>
+                <button onClick={downloadCSV} style={{ padding: '8px 15px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                  <Download size={14} /> Export CSV
+                </button>
               ) : (
-                <button onClick={handlePayment} disabled={isProcessing}>
-                  {isProcessing ? 'Processing...' : 'Pay ₹299 to Download'}
+                <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '8px 15px', background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                  {isProcessing ? 'Processing...' : 'Pay ₹299 to Unlock Full Logbook & Export'}
                 </button>
               )}
             </div>
@@ -190,7 +195,7 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {generatedData.map((row, idx) => (
+              {visibleRows.map((row, idx) => (
                 <tr key={idx}>
                   <td>{row.date}</td><td>{row.dayName}</td>
                   <td>{formatVal(row.wet)}</td><td>{formatVal(row.plastic)}</td>
@@ -201,6 +206,19 @@ export default function App() {
               ))}
             </tbody>
           </table>
+
+          {!isPaid && (
+            <div style={{ border: '2px dashed #059669', background: '#ecfdf5', padding: '20px', textAlign: 'center', marginTop: '10px', borderRadius: '6px' }}>
+              <Lock style={{ color: '#059669', marginBottom: '5px' }} />
+              <h3 style={{ margin: '5px 0', color: '#065f46' }}>Preview Locked (Showing Days 1 to 5)</h3>
+              <p style={{ margin: '5px 0 15px 0', color: '#047857', fontSize: '14px' }}>
+                Pay ₹299 to unlock all {generatedData.length} daily entries for this month and download the full Excel/CSV logbook.
+              </p>
+              <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 20px', background: '#059669', color: '#fff', border: 'none', borderRadius: '5px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer' }}>
+                {isProcessing ? 'Connecting...' : 'Pay ₹299 & Download Complete Month'}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
