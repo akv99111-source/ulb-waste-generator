@@ -17,7 +17,6 @@ const MONTHS = [
   { id: 12, shortEn: 'Dec', shortHi: 'दिसंबर', fullEn: 'December' }
 ];
 
-// REGIONAL BASES FOR SWM 2024
 const REGION_PROFILES = {
   north_plains: { wetBase: 0.54, dryBase: 0.20, nameEn: 'North Plains', nameHi: 'उत्तरी मैदानी क्षेत्र' },
   coastal_south: { wetBase: 0.62, dryBase: 0.16, nameEn: 'South & Coastal', nameHi: 'दक्षिण एवं तटीय क्षेत्र' },
@@ -27,7 +26,6 @@ const REGION_PROFILES = {
   national_avg: { wetBase: 0.52, dryBase: 0.22, nameEn: 'Pan-India Standard', nameHi: 'राष्ट्रीय औसत' }
 };
 
-// ALL 28 STATES + 8 UTs MAPPED TO THEIR GEOGRAPHICAL REGION
 const STATES_LIST = [
   { nameEn: 'Andaman & Nicobar Islands', nameHi: 'अंडमान और निकोबार', region: 'coastal_south' },
   { nameEn: 'Andhra Pradesh', nameHi: 'आंध्र प्रदेश', region: 'coastal_south' },
@@ -70,7 +68,6 @@ const STATES_LIST = [
 
 const getSeasonalFractions = (m, type, regionKey) => {
   const profile = REGION_PROFILES[regionKey] || REGION_PROFILES.north_plains;
-  
   if (type === 'ULB') {
     if ([5, 6, 7].includes(m)) return [profile.wetBase + 0.05, profile.dryBase - 0.02, 0.04, 0.02, 0.05, 0.12];
     if ([8, 9].includes(m)) return [profile.wetBase + 0.03, profile.dryBase - 0.01, 0.04, 0.02, 0.05, 0.13];
@@ -145,7 +142,7 @@ export default function App() {
           c2: parseFloat((dailyTotal * norm[1]).toFixed(2)),
           c3: parseFloat((dailyTotal * norm[2]).toFixed(2)),
           c4: parseFloat((dailyTotal * norm[3]).toFixed(2)),
-          c5: parseFloat((dailyTotal * norm[5]).toFixed(2)),
+          c5: parseFloat((dailyTotal * norm[4]).toFixed(2)),
           c6: parseFloat((dailyTotal * norm[5]).toFixed(2)),
           total: parseFloat(dailyTotal.toFixed(2))
         });
@@ -162,6 +159,7 @@ export default function App() {
     setIsProcessing(true);
     if (!window.Razorpay) {
       await new Promise((res) => {
+        if (document.querySelector('script[src*="checkout.razorpay.com"]')) return res(true);
         const s = document.createElement('script');
         s.src = 'https://checkout.razorpay.com/v1/checkout.js';
         s.onload = () => res(true);
@@ -214,6 +212,7 @@ export default function App() {
 
   const activeRows = generatedMonthlyData?.[activeTabMonth] || [];
   const visibleRows = isPaid ? activeRows : activeRows.slice(0, 5);
+  const activeMonthObj = MONTHS.find(m => m.id === activeTabMonth);
 
   return (
     <div style={{ fontFamily: 'sans-serif', background: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -252,7 +251,6 @@ export default function App() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '14px' }}>
               
-              {/* ALL STATES DROPDOWN WITH (i) INFO BUTTON */}
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: '#047857', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -262,7 +260,6 @@ export default function App() {
                     type="button" 
                     onClick={() => setShowStateInfo(!showStateInfo)} 
                     style={{ background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center', gap: '2px', fontSize: '12px', fontWeight: 'bold' }}
-                    title="Why choose state?"
                   >
                     <Info size={14} /> (i)
                   </button>
@@ -317,11 +314,10 @@ export default function App() {
               </div>
             </div>
 
-            {/* INFO POPUP BOX WHEN (i) IS CLICKED */}
             {showStateInfo && (
               <div style={{ background: '#f0f9ff', border: '1px solid #7dd3fc', padding: '10px 14px', borderRadius: '6px', marginBottom: '14px', fontSize: '12px', color: '#0369a1', lineHeight: '1.4' }}>
                 <div style={{ fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                  <span>ℹ️ {lang === 'hi' ? 'राज्य चयन का महत्व (Relevance of State Selection):' : 'Relevance of Selecting Your State:'}</span>
+                  <span>ℹ️ {lang === 'hi' ? 'राज्य चयन का महत्व:' : 'Relevance of Selecting Your State:'}</span>
                   <button type="button" onClick={() => setShowStateInfo(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#0369a1', fontWeight: 'bold' }}>✕</button>
                 </div>
                 <p style={{ margin: '0 0 4px 0' }}>
@@ -337,7 +333,6 @@ export default function App() {
               </div>
             )}
 
-            {/* MONTH SELECTION */}
             <div style={{ marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '13px' }}>
                 <strong>{lang === 'hi' ? 'माह चुनें (अधिकतम 3):' : 'Select Months (Max 3):'}</strong>
@@ -365,7 +360,6 @@ export default function App() {
             </button>
           </form>
 
-          {/* RESULTS SECTION */}
           {generatedMonthlyData && (
             <div ref={resultsRef} style={{ background: '#fff', padding: '15px', borderRadius: '8px', border: '1px solid #cbd5e1', scrollMarginTop: '15px' }}>
               
@@ -373,7 +367,6 @@ export default function App() {
                 <strong><Info size={14} style={{ verticalAlign: 'middle' }} /> SWM 2024 Guidance ({currentStateObj.nameEn} / {currentRegionObj.nameEn}):</strong> 4-Stream segregation applied. Baseline waste composition calibrated for chosen state profile.
               </div>
 
-              {/* TABS */}
               <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '12px', overflowX: 'auto' }}>
                 {selectedMonths.map((mId) => (
                   <button key={mId} onClick={() => setActiveTabMonth(mId)} style={{
@@ -386,7 +379,7 @@ export default function App() {
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{name} ({currentStateObj.nameEn}) — {MONTHS.find(m => m.id === activeTabMonth)?.fullEn} {startYear}</span>
+                <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{name} ({currentStateObj.nameEn}) — {activeMonthObj?.fullEn} {startYear}</span>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button onClick={() => setDisplayUnit(displayUnit === 'Tons' ? 'kg' : 'Tons')} style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
                     Unit: <strong>{displayUnit}</strong>
@@ -403,7 +396,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* TABLE */}
               <div style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}>
                 <table cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '700px' }}>
                   <thead>
@@ -454,7 +446,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* DISCLAIMER & FOOTER SECTION */}
       <div style={{ marginTop: '30px', padding: '15px 10px', borderTop: '1px solid #cbd5e1', textAlign: 'center', fontSize: '11px', color: '#64748b', lineHeight: '1.5', background: '#ffffff' }}>
         <p style={{ margin: '0 0 6px 0' }}>
           <strong>Disclaimer:</strong> This web tool is developed strictly for educational, research, and estimation purposes. Output datasets serve as decision-support models for solid waste management planning.
