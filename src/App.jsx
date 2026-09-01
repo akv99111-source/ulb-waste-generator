@@ -337,7 +337,7 @@ export default function App() {
                     onClick={() => setShowStateInfo(!showStateInfo)} 
                     style={{ background: 'none', border: 'none', color: '#0284c7', cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center', gap: '2px', fontSize: '12px', fontWeight: 'bold' }}
                   >
-                    <Info size={14} /> (i)
+                    <Info size={14} />
                   </button>
                 </div>
 
