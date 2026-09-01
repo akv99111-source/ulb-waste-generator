@@ -16,7 +16,7 @@ const MONTH_NAMES = [
   { id: 12, shortEn: 'Dec', shortHi: 'दिसंबर' }
 ];
 
-export default function App() {
+export default function app() {
   const [lang, setLang] = useState('hi');
   const [facilityType, setFacilityType] = useState('ULB');
   const [name, setName] = useState('Nagar Palika Parishad');
