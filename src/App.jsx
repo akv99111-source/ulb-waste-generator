@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, Download, Lock, Globe, Check, Info } from 'lucide-react';
+import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const MONTH_NAMES = [
@@ -61,13 +61,16 @@ export default function App() {
     return 50;
   };
 
+  // SWM 2024 Seasonal Fraction Distribution Logic
   const getSeasonalFractions = (monthId, type) => {
     if (type === 'ULB') {
-      if ([5, 6, 7].includes(monthId)) return [0.60, 0.08, 0.03, 0.06, 0.02, 0.21];
-      if ([8, 9].includes(monthId)) return [0.57, 0.09, 0.03, 0.06, 0.02, 0.23];
-      if ([11, 12, 1, 2].includes(monthId)) return [0.50, 0.12, 0.05, 0.08, 0.02, 0.23];
-      return [0.54, 0.10, 0.04, 0.08, 0.02, 0.22];
+      // 4-Stream Fractions: [Wet, Dry, Sanitary, Special Care/Hazardous, C&D, Inerts]
+      if ([5, 6, 7].includes(monthId)) return [0.58, 0.18, 0.04, 0.02, 0.05, 0.13]; // High Wet Waste (Fruit/Mango Season)
+      if ([8, 9].includes(monthId)) return [0.56, 0.19, 0.04, 0.02, 0.05, 0.14]; // Monsoon Moisture
+      if ([11, 12, 1, 2].includes(monthId)) return [0.50, 0.23, 0.05, 0.02, 0.06, 0.14]; // Winter Dry Packaging
+      return [0.54, 0.20, 0.04, 0.02, 0.05, 0.15]; // Standard baseline
     } else {
+      // MRF Dry Waste Fractions: [PET, HDPE/Hard Plastic, Cardboard/Paper, RDF/SCF, Glass/Metal, Rejects]
       if ([5, 6, 7].includes(monthId)) return [0.25, 0.15, 0.20, 0.22, 0.08, 0.10];
       return [0.20, 0.15, 0.25, 0.20, 0.10, 0.10];
     }
@@ -160,8 +163,8 @@ export default function App() {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID,
         amount: orderData.amount,
         currency: orderData.currency,
-        name: 'ULB / MRF Logbook Engine',
-        description: `${facilityType} Multi-Tab Excel (${selectedMonths.length} Month/s) - ${name}`,
+        name: 'SWM 2024 Logbook Engine',
+        description: `${facilityType} SWM 2024 Excel (${selectedMonths.length} Month/s) - ${name}`,
         order_id: orderData.id,
         handler: function () {
           setIsPaid(true);
@@ -187,9 +190,27 @@ export default function App() {
 
     let headers = [];
     if (facilityType === 'ULB') {
-      headers = ["Date", "Day", `Wet (${unitLabel})`, `Plastic (${unitLabel})`, `Textile (${unitLabel})`, `C&D (${unitLabel})`, `Hazardous (${unitLabel})`, `Inerts (${unitLabel})`, `Total (${unitLabel})` ];
+      headers = [
+        "Date", "Day", 
+        `Wet Waste (${unitLabel})`, 
+        `Dry Waste (${unitLabel})`, 
+        `Sanitary Waste (${unitLabel})`, 
+        `Special Care / Domestic Hazardous (${unitLabel})`, 
+        `C&D Waste (${unitLabel})`, 
+        `Inerts / Residual (${unitLabel})`, 
+        `Total Generated (${unitLabel})`
+      ];
     } else {
-      headers = ["Date", "Day", `PET Plastics (${unitLabel})`, `HDPE/Hard Plastic (${unitLabel})`, `Cardboard/Paper (${unitLabel})`, `RDF/Combustibles (${unitLabel})`, `Glass/Metal (${unitLabel})`, `Rejects (${unitLabel})`, `Total Dry Waste (${unitLabel})` ];
+      headers = [
+        "Date", "Day", 
+        `PET Plastics (${unitLabel})`, 
+        `HDPE / Hard Plastics (${unitLabel})`, 
+        `Paper / Cardboard (${unitLabel})`, 
+        `RDF / SCF (${unitLabel})`, 
+        `Glass & Metals (${unitLabel})`, 
+        `Rejects (${unitLabel})`, 
+        `Total Dry Waste (${unitLabel})`
+      ];
     }
 
     const workbook = XLSX.utils.book_new();
@@ -209,7 +230,7 @@ export default function App() {
       XLSX.utils.book_append_sheet(workbook, worksheet, monthName);
     });
 
-    XLSX.writeFile(workbook, `${name.replace(/\s+/g, '_')}_Logbook_${selectedMonths.length}Months_${displayUnit}.xlsx`);
+    XLSX.writeFile(workbook, `${name.replace(/\s+/g, '_')}_SWM2024_Logbook_${selectedMonths.length}Months_${displayUnit}.xlsx`);
   };
 
   const activeRows = (generatedMonthlyData && activeTabMonth) ? generatedMonthlyData[activeTabMonth] : [];
@@ -218,11 +239,7 @@ export default function App() {
   return (
     <div style={{ fontFamily: 'sans-serif', margin: 0, background: '#f8fafc', minHeight: '100vh' }}>
       
-      {/* 
-        -------------------------------------------------------------
-        HERO BANNER SECTION (Header area for the website)
-        -------------------------------------------------------------
-      */}
+      {/* SWM 2024 HERO BANNER SECTION */}
       <div style={{
         background: 'linear-gradient(135deg, #064e3b 0%, #047857 100%)',
         color: '#ffffff',
@@ -232,20 +249,18 @@ export default function App() {
       }}>
         <div style={{ maxWidth: '1050px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
           
-          {/* Main Title & Slogan */}
           <div>
-            <div style={{ display: 'inline-block', background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
-              {lang === 'hi' ? 'SWM 2016 दिशानिर्देशों के अनुरूप' : 'SWM 2016 Guidelines Compliant'}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.2)', padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px' }}>
+              <ShieldCheck size={14} /> {lang === 'hi' ? 'SWM 2024 दिशानिर्देशों के अनुरूप (4-Stream Segregation)' : 'SWM 2024 Rules Compliant (4-Stream Segregation)'}
             </div>
             <h1 style={{ fontSize: '24px', margin: '0 0 6px 0', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <Building2 size={26} /> {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लोगबुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}
+              <Building2 size={26} /> {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लोगबुक जनरेटर (SWM 2024)' : 'ULB & MRF Waste Logbook Generator (SWM 2024)'}
             </h1>
             <p style={{ fontSize: '14px', margin: 0, color: '#a7f3d0' }}>
-              {lang === 'hi' ? 'उत्तर भारत एवं यूपी के लिए विशिष्ट सीजनल और बहु-शहरी कचरा लोगबुक टूल' : 'Seasonal Waste Logbook Generation Engine for North Indian Municipal Bodies & MRF Centers'}
+              {lang === 'hi' ? 'उत्तर भारत एवं यूपी के लिए 4-स्ट्रीम अपशिष्ट पृथक्कीकरण और सीजनल वेरिएशंस हेतु स्वचालित टूल' : 'Automated 4-Stream Waste Logbook Generation Engine aligned with SWM 2024 Standards'}
             </p>
           </div>
 
-          {/* Language Toggle Button */}
           <button onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{
             padding: '8px 16px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', 
             borderRadius: '6px', border: 'none', background: '#ffffff', color: '#047857', fontWeight: 'bold', fontSize: '14px'
@@ -255,16 +270,13 @@ export default function App() {
 
         </div>
       </div>
-      {/* ------------------------------------------------------------- */}
 
-
-      {/* Main Content Area */}
+      {/* Main Container */}
       <div style={{ padding: '20px', maxWidth: '1050px', margin: '0 auto' }}>
         
         {/* Form Container */}
         <form onSubmit={handleGenerate} style={{ background: '#ffffff', padding: '18px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '25px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
           
-          {/* Facility Selector */}
           <div style={{ marginBottom: '18px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <label style={{ fontWeight: 'bold', fontSize: '15px' }}>{lang === 'hi' ? 'सुविधा का प्रकार चुनें:' : 'Select Facility Type:'}</label>
             <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -275,7 +287,6 @@ export default function App() {
             </label>
           </div>
 
-          {/* Inputs Responsive Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '15px', marginBottom: '18px' }}>
             <div>
               <label style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>{lang === 'hi' ? 'निकाय / एमआरएफ का नाम' : 'Name of Municipal Body / MRF Centre'}</label>
@@ -325,7 +336,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Responsive Month Picker */}
           <div style={{ marginBottom: '18px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '5px' }}>
               <label style={{ fontWeight: 'bold', fontSize: '15px' }}>{lang === 'hi' ? 'माह चुनें (अधिकतम 3 माह तक टिक करें):' : 'Select Months (Tick up to 3):'}</label>
@@ -361,25 +371,26 @@ export default function App() {
           </div>
 
           <button type="submit" style={{ width: '100%', padding: '14px', background: '#059669', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px', boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }}>
-            {lang === 'hi' ? 'लोगबुक जनरेट करें →' : 'Generate Dataset Now →'}
+            {lang === 'hi' ? 'SWM 2024 लोगबुक जनरेट करें →' : 'Generate SWM 2024 Dataset →'}
           </button>
         </form>
 
-        {/* Dataset Output & Knowledge Guidance */}
+        {/* Dataset Output & SWM 2024 Guidance */}
         {generatedMonthlyData && (
           <div style={{ background: '#ffffff', padding: '18px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
-            {/* Knowledge Info Box */}
+            
             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '15px', borderRadius: '8px', marginBottom: '18px', fontSize: '14px', color: '#1e40af', lineHeight: '1.5' }}>
               <div style={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                <Info size={18} /> {lang === 'hi' ? 'सीजनल कचरा बदलाव और दिशानिर्देश जानकारी:' : 'Seasonal Variations & Compliance Guidance:'}
+                <Info size={18} /> {lang === 'hi' ? 'SWM 2024 अनुपालन एवं सीजनल दिशानिर्देश:' : 'SWM 2024 Compliance & Seasonal Guidance Notes:'}
               </div>
               <ul style={{ margin: 0, paddingLeft: '20px' }}>
-                <li>{lang === 'hi' ? 'उत्तर भारत एवं यूपी में मौसम (गर्मियों में आम/फलों का सीजन तथा मॉनसून) के अनुसार गीले कचरे (Wet Waste) का अनुपात 55-60% तक बदलता है। इस लोगबुक में उस भिन्नता को स्वचालित रूप से समायोजित किया गया है।' : 'In North India & UP, Wet Waste proportion varies dynamically up to 55-60% based on fruit seasons (e.g., Mangoes) and monsoon moisture. This logbook automatically adjusts these fractions.'}</li>
-                <li>{lang === 'hi' ? 'ठोस अपशिष्ट प्रबंधन नियम (SWM 2016) के तहत ऑडिट अनुपालन के लिए हर माह की स्वतंत्र लोगबुक (Excel Sheet) अनिवार्य है।' : 'Per Solid Waste Management (SWM 2016) rulebook, maintaining separate monthly logbook sheets is mandatory for municipal auditing compliance.'}</li>
+                <li>{lang === 'hi' ? 'SWM 2024 के तहत 4-स्ट्रीम पृथक्कीकरण (Wet, Dry, Sanitary, Special Care) अनिवार्य किया गया है।' : 'SWM 2024 framework mandates 4-stream waste segregation at source (Wet, Dry, Sanitary, Special Care/Hazardous).'}</li>
+                <li>{lang === 'hi' ? 'उत्तर भारत एवं यूपी में मौसम (गर्मियों में आम/फलों के सीजन एवं मॉनसून) के अनुसार गीले कचरे (Wet Waste) का अनुपात 55-60% तक बदलता है।' : 'Wet waste fraction naturally varies up to 55-60% in North India based on seasonal fruit yields (Mango season) and monsoon moisture.'}</li>
+                <li>{lang === 'hi' ? 'ऑडिटिंग एवं सीपीसीबी/एसपीसीबी (CPCB/SPCB) पोर्टल पर वार्षिक रिटर्न दाखिल करने के लिए हर महीने की अलग एक्सल शीट होना आवश्यक है।' : 'Separate monthly logbook tabs are required for environmental auditing and annual returns submission on CPCB/SPCB portals.'}</li>
               </ul>
             </div>
 
-            {/* Month Tab Headers (Scrollable on Mobile) */}
+            {/* Month Tab Headers */}
             <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '20px', overflowX: 'auto', whiteSpace: 'nowrap' }}>
               {selectedMonths.map((mId) => {
                 const monthObj = MONTH_NAMES.find(m => m.id === mId);
@@ -415,7 +426,7 @@ export default function App() {
                 </button>
                 {isPaid ? (
                   <button onClick={downloadMultiSheetExcel} style={{ padding: '10px 16px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
-                    <Download size={16} /> {lang === 'hi' ? 'मल्टी-शीट एक्सल (.xlsx) डाउनलोड' : 'Export Excel (.xlsx)'}
+                    <Download size={16} /> {lang === 'hi' ? 'SWM 2024 एक्सल (.xlsx) डाउनलोड' : 'Export Excel (.xlsx)'}
                   </button>
                 ) : (
                   <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 16px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}>
@@ -425,21 +436,31 @@ export default function App() {
               </div>
             </div>
 
-            {/* Table Container with Horizontal Scroll for Mobile */}
+            {/* Table Container */}
             <div style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#f8fafc' }}>
-              <table cellPadding="10" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', minWidth: '700px', background: '#ffffff' }}>
+              <table cellPadding="10" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px', minWidth: '780px', background: '#ffffff' }}>
                 <thead>
                   <tr style={{ background: '#f1f5f9', borderBottom: '2px solid #cbd5e1' }}>
                     <th>Date</th><th>Day</th>
                     {facilityType === 'ULB' ? (
                       <>
-                        <th style={{ background: '#ecfdf5' }}>Wet ({displayUnit})</th><th>Plastic ({displayUnit})</th><th>Textile ({displayUnit})</th>
-                        <th>C&D ({displayUnit})</th><th>Hazardous ({displayUnit})</th><th>Inerts ({displayUnit})</th><th style={{ background: '#f1f5f9' }}>Total ({displayUnit})</th>
+                        <th style={{ background: '#ecfdf5' }}>Wet ({displayUnit})</th>
+                        <th>Dry ({displayUnit})</th>
+                        <th>Sanitary ({displayUnit})</th>
+                        <th>Special Care / Hazardous ({displayUnit})</th>
+                        <th>C&D ({displayUnit})</th>
+                        <th>Inerts ({displayUnit})</th>
+                        <th style={{ background: '#f1f5f9' }}>Total ({displayUnit})</th>
                       </>
                     ) : (
                       <>
-                        <th>PET ({displayUnit})</th><th>HDPE ({displayUnit})</th><th>Cardboard ({displayUnit})</th>
-                        <th>RDF ({displayUnit})</th><th>Glass/Metal ({displayUnit})</th><th>Rejects ({displayUnit})</th><th>Total Dry ({displayUnit})</th>
+                        <th>PET ({displayUnit})</th>
+                        <th>HDPE ({displayUnit})</th>
+                        <th>Cardboard ({displayUnit})</th>
+                        <th>RDF / SCF ({displayUnit})</th>
+                        <th>Glass & Metal ({displayUnit})</th>
+                        <th>Rejects ({displayUnit})</th>
+                        <th>Total Dry ({displayUnit})</th>
                       </>
                     )}
                   </tr>
@@ -448,34 +469,36 @@ export default function App() {
                   {visibleRows.map((row, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td>{row.date}</td><td>{row.dayName}</td>
-                      <td style={{ background: facilityType === 'ULB' ? '#ecfdf5' : '#fff' }}>{formatVal(row.c1)}</td><td>{formatVal(row.c2)}</td>
-                      <td>{formatVal(row.c3)}</td><td>{formatVal(row.c4)}</td>
-                      <td>{formatVal(row.c5)}</td><td>{formatVal(row.c6)}</td>
+                      <td style={{ background: facilityType === 'ULB' ? '#ecfdf5' : '#fff' }}>{formatVal(row.c1)}</td>
+                      <td>{formatVal(row.c2)}</td>
+                      <td>{formatVal(row.c3)}</td>
+                      <td>{formatVal(row.c4)}</td>
+                      <td>{formatVal(row.c5)}</td>
+                      <td>{formatVal(row.c6)}</td>
                       <td><strong>{formatVal(row.total)}</strong></td>
                     </tr>
                   ))}
                 </tbody>
-              </tbody>
-            </table>
-          </div>
-
-          {!isPaid && (
-            <div style={{ border: '3px dashed #059669', background: '#ecfdf5', padding: '20px', textAlign: 'center', marginTop: '15px', borderRadius: '10px' }}>
-              <Lock style={{ color: '#059669', marginBottom: '8px' }} size={20} />
-              <h4 style={{ margin: '8px 0', color: '#065f46', fontSize: '16px' }}>
-                {lang === 'hi' ? 'पूर्वावलोकन लॉक है (केवल शुरुआती 5 दिन दिख रहे हैं)' : 'Preview Locked (Showing Days 1 to 5 only)'}
-              </h4>
-              <p style={{ margin: '8px 0 15px 0', color: '#047857', fontSize: '14px', lineHeight: '1.4' }}>
-                {lang === 'hi' ? `चयनित ${selectedMonths.length} माह की अलग-अलग शीट वाली पूर्ण एक्सल (.xlsx) फाइल डाउनलोड करने के लिए ₹${getPrice()} का भुगतान करें।` : `Pay ₹${getPrice()} to unlock the full Multi-Sheet Excel file (.xlsx) featuring separate tabs for all ${selectedMonths.length} selected months.`}
-              </p>
-              <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '12px 24px', background: '#059669', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }}>
-                {isProcessing ? 'Connecting...' : `${lang === 'hi' ? `₹${getPrice()} भुगतान व पूर्ण फाइल डाउनलोड करें` : `Pay ₹${getPrice()} & Download Complete File`}`}
-              </button>
+              </table>
             </div>
-          )}
-        </div>
-      )}
+
+            {!isPaid && (
+              <div style={{ border: '3px dashed #059669', background: '#ecfdf5', padding: '20px', textAlign: 'center', marginTop: '15px', borderRadius: '10px' }}>
+                <Lock style={{ color: '#059669', marginBottom: '8px' }} size={20} />
+                <h4 style={{ margin: '8px 0', color: '#065f46', fontSize: '16px' }}>
+                  {lang === 'hi' ? 'पूर्वावलोकन लॉक है (केवल शुरुआती 5 दिन दिख रहे हैं)' : 'Preview Locked (Showing Days 1 to 5 only)'}
+                </h4>
+                <p style={{ margin: '8px 0 15px 0', color: '#047857', fontSize: '14px', lineHeight: '1.4' }}>
+                  {lang === 'hi' ? `चयनित ${selectedMonths.length} माह की SWM 2024 प्रारूप वाली पूर्ण एक्सल (.xlsx) फाइल डाउनलोड करने के लिए ₹${getPrice()} का भुगतान करें।` : `Pay ₹${getPrice()} to unlock the full SWM 2024 Multi-Sheet Excel file (.xlsx) with separate tabs for all ${selectedMonths.length} selected months.`}
+                </p>
+                <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '12px 24px', background: '#059669', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '15px', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.15)' }}>
+                  {isProcessing ? 'Connecting...' : `${lang === 'hi' ? `₹${getPrice()} भुगतान व पूर्ण फाइल डाउनलोड करें` : `Pay ₹${getPrice()} & Download Complete File`}`}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
 }
