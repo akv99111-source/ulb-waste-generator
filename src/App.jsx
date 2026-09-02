@@ -195,16 +195,16 @@ export default function App() {
         let sum = raw.reduce((a, b) => a + b, 0);
         let norm = raw.map(r => r / sum);
 
-        // Calculate and round individual categories first
-        let c1 = Number((dailyTotal * norm[0]).toFixed(2));
-        let c2 = Number((dailyTotal * norm[1]).toFixed(2));
-        let c3 = Number((dailyTotal * norm[2]).toFixed(2));
-        let c4 = Number((dailyTotal * norm[3]).toFixed(2));
-        let c5 = Number((dailyTotal * norm[4]).toFixed(2));
-        let c6 = Number((dailyTotal * norm[5]).toFixed(2));
+        // Calculate and round individual categories to 3 decimal places (preserves exact kg values)
+        let c1 = Number((dailyTotal * norm[0]).toFixed(3));
+        let c2 = Number((dailyTotal * norm[1]).toFixed(3));
+        let c3 = Number((dailyTotal * norm[2]).toFixed(3));
+        let c4 = Number((dailyTotal * norm[3]).toFixed(3));
+        let c5 = Number((dailyTotal * norm[4]).toFixed(3));
+        let c6 = Number((dailyTotal * norm[5]).toFixed(3));
         
         // Ensure standard category sum aligns exactly with final daily total
-        let exactTotal = Number((c1 + c2 + c3 + c4 + c5 + c6).toFixed(2));
+        let exactTotal = Number((c1 + c2 + c3 + c4 + c5 + c6).toFixed(3));
 
         logs.push({
           date: dateStr,
@@ -267,7 +267,8 @@ export default function App() {
     }
   };
 
-  const formatVal = (v) => displayUnit === 'kg' ? Math.round(v * 1000) : v.toFixed(2);
+  // 3 decimal places for Tons ensures weighbridge precision and prevents trailing zeros when mapped to kg
+  const formatVal = (v) => displayUnit === 'kg' ? Math.round(v * 1000) : v.toFixed(3);
 
   const downloadMultiSheetExcel = () => {
     if (!generatedMonthlyData) return;
@@ -303,7 +304,7 @@ export default function App() {
               </span>
               <h1 style={{ fontSize: '22px', margin: '6px 0 2px 0', fontWeight: '800' }}>
                 <Building2 size={22} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लॉगबुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}
+                {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लोगबुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}
               </h1>
               <p style={{ fontSize: '13px', margin: 0, color: '#a7f3d0' }}>
                 {lang === 'hi' ? '4-स्ट्रीम अपशिष्ट पृथक्कीकरण एवं अखिल भारतीय राज्यवार एडजस्टमेंट टूल' : 'Automated 4-Stream Logbook Engine with Pan-India State-Wise Calibration'}
@@ -480,7 +481,7 @@ export default function App() {
             </div>
 
             <button type="submit" style={{ width: '100%', padding: '12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
-              {lang === 'hi' ? 'लॉगबुक जनरेट करें →' : 'Generate Dataset →'}
+              {lang === 'hi' ? 'लोगबुक जनरेट करें →' : 'Generate Dataset →'}
             </button>
           </form>
 
@@ -575,32 +576,7 @@ export default function App() {
           <strong>Disclaimer:</strong> This web tool is developed strictly for educational, research, and estimation purposes. Output datasets serve as decision-support models for solid waste management planning.
         </p>
         <p style={{ margin: 0 }}>
-         <p style={{ margin: 0 }}>
-  Copyright © 2026 CRF | Engineered & Maintained by <strong>Team CRF</strong> —{' '}
-  <a
-    href="https://www.consilienceresearch.in/"
-    target="_blank"
-    rel="noopener noreferrer"
-    style={{
-      color: '#059669',
-      fontWeight: 'bold',
-      textDecoration: 'none'
-    }}
-  >
-    Consilience Research Foundation
-  </a>
-  , an Urban & Infrastructure Research Consultancy Institute. Support:{' '}
-  <a
-    href="mailto:crginfomail@gmail.com"
-    style={{
-      color: '#059669',
-      fontWeight: 'bold',
-      textDecoration: 'none'
-    }}
-  >
-    crginfomail@gmail.com
-  </a>
-</p>
+          Copyright © 2026 CRF | Engineered & Maintained by <strong>Team CRF</strong> — <a href="https://www.consilienceresearch.in/" target="_blank" rel="noopener noreferrer" style={{ color: '#059669', fontWeight: 'bold', textDecoration: 'none' }}>Consilience Research Foundation</a>, an Urban & Infrastructure Research Consultancy Institute.
         </p>
       </div>
 
