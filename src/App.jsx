@@ -575,7 +575,32 @@ export default function App() {
           <strong>Disclaimer:</strong> This web tool is developed strictly for educational, research, and estimation purposes. Output datasets serve as decision-support models for solid waste management planning.
         </p>
         <p style={{ margin: 0 }}>
-          Copyright © 2026 CRF | Engineered & Maintained by <strong>Team CRF</strong> — <a href="https://www.consilienceresearch.in/" target="_blank" rel="noopener noreferrer" style={{ color: '#059669', fontWeight: 'bold', textDecoration: 'none' }}>Consilience Research Foundation</a>, an Urban & Infrastructure Research Consultancy Institute.
+         <p style={{ margin: 0 }}>
+  Copyright © 2026 CRF | Engineered & Maintained by <strong>Team CRF</strong> —{' '}
+  <a
+    href="https://www.consilienceresearch.in/"
+    target="_blank"
+    rel="noopener noreferrer"
+    style={{
+      color: '#059669',
+      fontWeight: 'bold',
+      textDecoration: 'none'
+    }}
+  >
+    Consilience Research Foundation
+  </a>
+  , an Urban & Infrastructure Research Consultancy Institute. Support:{' '}
+  <a
+    href="mailto:crginfomail@gmail.com"
+    style={{
+      color: '#059669',
+      fontWeight: 'bold',
+      textDecoration: 'none'
+    }}
+  >
+    crginfomail@gmail.com
+  </a>
+</p>
         </p>
       </div>
 
