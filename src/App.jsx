@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck, MapPin } from 'lucide-react';
+import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck, MapPin, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const MONTHS = [
@@ -66,18 +66,19 @@ const STATES_LIST = [
   { nameEn: 'Other / Pan-India Standard', nameHi: 'अन्य / राष्ट्रीय मानक', region: 'national_avg' }
 ];
 
+// Added Guardrails: min 0 (to allow for fully skimmed materials) and realistic max limits
 const DEFAULT_MRF_STREAMS = [
-  { id: 'pet', label: 'PET', defaultWeight: 20, isDefault: true },
-  { id: 'hdpe', label: 'HDPE', defaultWeight: 15, isDefault: true },
-  { id: 'paper', label: 'Paper/Cardboard', defaultWeight: 25, isDefault: true },
-  { id: 'rdf', label: 'RDF/SCF', defaultWeight: 20, isDefault: true },
-  { id: 'glass_metal', label: 'Glass & Metal', defaultWeight: 10, isDefault: true },
-  { id: 'rejects', label: 'Rejects', defaultWeight: 10, isDefault: true },
-  { id: 'ldpe', label: 'LDPE/Film Plastics', defaultWeight: 8, isDefault: false },
-  { id: 'pp', label: 'PP (Polypropylene)', defaultWeight: 5, isDefault: false },
-  { id: 'tetrapak', label: 'Tetra Pak', defaultWeight: 2, isDefault: false },
-  { id: 'nonferrous', label: 'Non-Ferrous Metals', defaultWeight: 2, isDefault: false },
-  { id: 'organic_rejects', label: 'Organic Rejects', defaultWeight: 5, isDefault: false },
+  { id: 'pet', label: 'PET', defaultWeight: 15, min: 0, max: 90, isDefault: true },
+  { id: 'hdpe', label: 'HDPE', defaultWeight: 10, min: 0, max: 90, isDefault: true },
+  { id: 'paper', label: 'Paper/Cardboard', defaultWeight: 25, min: 0, max: 90, isDefault: true },
+  { id: 'rdf', label: 'RDF/SCF', defaultWeight: 20, min: 0, max: 100, isDefault: true },
+  { id: 'glass_metal', label: 'Glass & Metal', defaultWeight: 10, min: 0, max: 90, isDefault: true },
+  { id: 'rejects', label: 'Rejects', defaultWeight: 20, min: 0, max: 100, isDefault: true },
+  { id: 'ldpe', label: 'LDPE/Film Plastics', defaultWeight: 0, min: 0, max: 90, isDefault: false },
+  { id: 'pp', label: 'PP (Polypropylene)', defaultWeight: 0, min: 0, max: 90, isDefault: false },
+  { id: 'tetrapak', label: 'Tetra Pak', defaultWeight: 0, min: 0, max: 90, isDefault: false },
+  { id: 'nonferrous', label: 'Non-Ferrous Metals', defaultWeight: 0, min: 0, max: 90, isDefault: false },
+  { id: 'organic_rejects', label: 'Organic Rejects', defaultWeight: 0, min: 0, max: 100, isDefault: false },
 ];
 
 const getSeasonalFractionsULB = (m, regionKey) => {
@@ -152,6 +153,12 @@ export default function App() {
   const estimatedDailyWaste = ((Number(population) * parsedPerCapita) / 1000000).toFixed(2);
   const mrfCapacityUtilization = Number(mrfMaxCapacityTons) > 0 ? (Number(mrfDailyDryTons) / Number(mrfMaxCapacityTons)) * 100 : 0;
 
+  // Live total percentage calculation for Advanced UI feedback
+  const activeMrfStreams = isAdvancedMode ? mrfStreamsConfig.filter(s => s.active) : mrfStreamsConfig.filter(s => s.isDefault);
+  const totalMrfPercentage = activeMrfStreams.reduce((acc, s) => acc + Number(s.userWeight || 0), 0);
+  const isValidMrfTotal = totalMrfPercentage === 100;
+  const generateDisabled = facilityType === 'MRF' && isAdvancedMode && !isValidMrfTotal;
+
   const toggleMonth = (mId) => {
     if (selectedMonths.includes(mId)) {
       if (selectedMonths.length > 1) setSelectedMonths(selectedMonths.filter(m => m !== mId));
@@ -176,21 +183,27 @@ export default function App() {
   };
 
   const updateStreamConfig = (id, field, value) => {
-    setMrfStreamsConfig(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
+    setMrfStreamsConfig(prev => prev.map(s => {
+      if (s.id === id) {
+        if (field === 'userWeight') {
+          // Clamp value between defined min/max guards to prevent physically impossible datasets
+          let num = value === '' ? '' : Number(value);
+          if (num !== '') {
+            if (num < s.min) num = s.min;
+            if (num > s.max) num = s.max;
+          }
+          return { ...s, [field]: num };
+        }
+        return { ...s, [field]: value };
+      }
+      return s;
+    }));
   };
 
   const handleGenerate = (e) => {
     e.preventDefault();
+    if (generateDisabled) return;
     setIsPaid(false);
-
-    let activeMrfStreams = [];
-    if (facilityType === 'MRF') {
-      activeMrfStreams = isAdvancedMode ? mrfStreamsConfig.filter(s => s.active) : mrfStreamsConfig.filter(s => s.isDefault);
-      if (activeMrfStreams.length === 0) return alert('Please select at least one waste stream for the MRF.');
-      
-      const sumWeights = activeMrfStreams.reduce((acc, s) => acc + Number(s.userWeight || 0), 0);
-      if (sumWeights <= 0) return alert('Total combined percentages for selected streams must be greater than 0.');
-    }
 
     let monthlyDataMap = {};
 
@@ -232,10 +245,8 @@ export default function App() {
 
           logs.push({ date: dateStr, dayName, c1, c2, c3, c4, c5, c6, total: exactTotal });
         } else {
-          // MRF Dynamic Streams Mapping and Auto-Normalization
-          const baseSum = activeMrfStreams.reduce((acc, s) => acc + Number(s.userWeight || 0), 0);
-          const baseNorm = activeMrfStreams.map(s => Number(s.userWeight || 0) / baseSum);
-
+          // Applies verified base fraction and normalizes daily variance noise to maintain exact 100% target average
+          const baseNorm = activeMrfStreams.map(s => Number(s.userWeight || 0) / 100);
           let raw = baseNorm.map(r => r * (0.88 + random() * 0.24));
           let dynamicSum = raw.reduce((a, b) => a + b, 0);
           let dynamicNorm = raw.map(r => r / dynamicSum);
@@ -359,7 +370,7 @@ export default function App() {
                 {lang === 'hi' ? '4-स्ट्रीम अपशिष्ट पृथक्कीकरण एवं अखिल भारतीय राज्यवार एडजस्टमेंट टूल' : 'Automated 4-Stream Logbook Engine with Pan-India State-Wise Calibration'}
               </p>
             </div>
-            <button onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#047857', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
+            <button type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#047857', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
               <Globe size={15} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> {lang === 'hi' ? 'English' : 'हिंदी'}
             </button>
           </div>
@@ -477,7 +488,8 @@ export default function App() {
 
                     {isAdvancedMode && (
                       <div style={{ marginTop: '14px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
-                        <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 10px 0' }}>Select specific sorted streams and input indicative composition percentages. The system will automatically mathematically normalize the fractions to equal exactly 100%.</p>
+                        <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 10px 0' }}>Select specific sorted streams and input indicative composition percentages representing the real arrival state (accounting for informal skimming).</p>
+                        
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
                           {mrfStreamsConfig.map(stream => (
                             <div key={stream.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', opacity: stream.active ? 1 : 0.6 }}>
@@ -485,12 +497,28 @@ export default function App() {
                               <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
                                 <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e293b' }}>{stream.label}</span>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                                  <input type="number" min="0" max="100" value={stream.userWeight} onChange={(e) => updateStreamConfig(stream.id, 'userWeight', e.target.value)} disabled={!stream.active} style={{ width: '100%', fontSize: '12px', padding: '4px', border: '1px solid #cbd5e1', borderRadius: '4px' }} />
+                                  <input type="number" min={stream.min} max={stream.max} value={stream.userWeight} onChange={(e) => updateStreamConfig(stream.id, 'userWeight', e.target.value)} disabled={!stream.active} style={{ width: '100%', fontSize: '12px', padding: '4px', border: '1px solid #cbd5e1', borderRadius: '4px' }} />
                                   <span style={{ fontSize: '11px', color: '#64748b' }}>%</span>
                                 </div>
                               </div>
                             </div>
                           ))}
+                        </div>
+
+                        {/* STRICT 100% VALIDATION COUNTER */}
+                        <div style={{ 
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                          marginTop: '15px', padding: '10px 15px', borderRadius: '6px', 
+                          background: isValidMrfTotal ? '#dcfce7' : '#fee2e2', 
+                          border: isValidMrfTotal ? '1px solid #22c55e' : '1px solid #ef4444' 
+                        }}>
+                           <span style={{ fontWeight: 'bold', color: isValidMrfTotal ? '#166534' : '#991b1b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {!isValidMrfTotal && <AlertCircle size={16} />} 
+                              Total Composition: {totalMrfPercentage}%
+                           </span>
+                           {!isValidMrfTotal && (
+                             <span style={{ fontSize: '12px', color: '#991b1b', fontWeight: 'bold' }}>Total must equal exactly 100% to proceed.</span>
+                           )}
                         </div>
                       </div>
                     )}
@@ -547,8 +575,8 @@ export default function App() {
               </div>
             </div>
 
-            <button type="submit" style={{ width: '100%', padding: '12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
-              {lang === 'hi' ? 'लोगबुक जनरेट करें →' : 'Generate Dataset →'}
+            <button type="submit" disabled={generateDisabled} style={{ width: '100%', padding: '12px', background: generateDisabled ? '#94a3b8' : '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: generateDisabled ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
+              {generateDisabled ? 'Please fix total percentage to exactly 100%' : (lang === 'hi' ? 'लोगबुक जनरेट करें →' : 'Generate Dataset →')}
             </button>
           </form>
 
@@ -557,7 +585,7 @@ export default function App() {
               
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '10px', borderRadius: '6px', marginBottom: '12px', fontSize: '12px', color: '#1e40af' }}>
                 <strong><Info size={14} style={{ verticalAlign: 'middle' }} /> Indicative regional modelling assumptions ({currentStateObj.nameEn} / {currentRegionObj.nameEn}):</strong> 
-                {generatedConfig.type === 'ULB' ? ' 4-Stream segregation applied.' : (isAdvancedMode ? ' Advanced custom MRF fractions mapped & auto-normalized.' : ' Standard 6-stream MRF composition applied.')}
+                {generatedConfig.type === 'ULB' ? ' 4-Stream segregation applied.' : (isAdvancedMode ? ' Advanced custom MRF fractions mapped successfully.' : ' Standard 6-stream MRF composition applied.')}
               </div>
 
               <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '12px', overflowX: 'auto' }}>
