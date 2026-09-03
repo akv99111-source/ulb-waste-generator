@@ -226,13 +226,15 @@ export default function App() {
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
-  const handlePayment = async () => {
+ const handlePayment = async () => {
     setIsProcessing(true);
-    if (!window.Razorpay) {
+
+    // Load Cashfree Web JS SDK v3 dynamically
+    if (!window.Cashfree) {
       await new Promise((res) => {
-        if (document.querySelector('script[src*="checkout.razorpay.com"]')) return res(true);
+        if (document.querySelector('script[src*="cashfree.com"]')) return res(true);
         const s = document.createElement('script');
-        s.src = 'https://checkout.razorpay.com/v1/checkout.js';
+        s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
         s.onload = () => res(true);
         document.body.appendChild(s);
       });
@@ -242,29 +244,40 @@ export default function App() {
       const res = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: getPrice() * 100 })
+        body: JSON.stringify({ 
+          amount: getPrice(),
+          customerName: name
+        })
       });
+
       const order = await res.json();
 
-      new window.Razorpay({
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
-        name: 'SWM Logbook Engine',
-        description: `${facilityType} (${selectedMonths.length} Months) - ${name}`,
-        order_id: order.id,
-        handler: () => { 
-          // NOTE: Server-side Razorpay signature verification is required here before production deployment.
-          setIsPaid(true); 
-          setIsProcessing(false); 
-          downloadMultiSheetExcel(); 
-        },
-        theme: { color: '#059669' }
-      }).open();
+      if (!order.payment_session_id) {
+        throw new Error(order.message || 'Failed to initialize payment session.');
+      }
+
+      const cashfree = window.Cashfree({
+        mode: import.meta.env.VITE_CASHFREE_MODE || 'production'
+      });
+
+      cashfree.checkout({
+        paymentSessionId: order.payment_session_id,
+        redirectTarget: '_modal'
+      }).then((result) => {
+        if (result.error) {
+          alert('Payment Failed: ' + result.error.message);
+          setIsProcessing(false);
+        } else if (result.paymentDetails) {
+          setIsPaid(true);
+          setIsProcessing(false);
+          downloadMultiSheetExcel();
+        }
+      });
+
     } catch (err) {
       alert('Payment Error: ' + err.message);
       setIsProcessing(false);
-    }
+      }
   };
 
   // 3 decimal places for Tons ensures weighbridge precision and prevents trailing zeros when mapped to kg
