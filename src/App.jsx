@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck, MapPin, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -66,7 +66,6 @@ const STATES_LIST = [
   { nameEn: 'Other / Pan-India Standard', nameHi: 'अन्य / राष्ट्रीय मानक', region: 'national_avg' }
 ];
 
-// Added Guardrails: min 0 (to allow for fully skimmed materials) and realistic max limits
 const DEFAULT_MRF_STREAMS = [
   { id: 'pet', label: 'PET', defaultWeight: 15, min: 0, max: 90, isDefault: true },
   { id: 'hdpe', label: 'HDPE', defaultWeight: 10, min: 0, max: 90, isDefault: true },
@@ -144,6 +143,11 @@ export default function App() {
   const [showStateInfo, setShowStateInfo] = useState(false);
   const [activePolicy, setActivePolicy] = useState(null);
 
+  // Recovery State Variables
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [restoreOrderId, setRestoreOrderId] = useState('');
+  const [isRestoring, setIsRestoring] = useState(false);
+
   const resultsRef = useRef(null);
   const currentStateObj = STATES_LIST.find(s => s.nameEn === selectedState) || STATES_LIST[33];
   const currentRegionKey = currentStateObj.region;
@@ -158,6 +162,19 @@ export default function App() {
   const totalMrfPercentage = activeMrfStreams.reduce((acc, s) => acc + Number(s.userWeight || 0), 0);
   const isValidMrfTotal = totalMrfPercentage === 100;
   const generateDisabled = facilityType === 'MRF' && isAdvancedMode && !isValidMrfTotal;
+
+  // Generate a unique memory key based on what the user is currently typing
+  const getSessionKey = () => `crf_paid_${facilityType}_${name.replace(/\s+/g, '_')}_${selectedMonths.length}M`;
+
+  // LAYER 1: Check browser memory automatically when inputs change
+  useEffect(() => {
+    const memoryKey = getSessionKey();
+    if (localStorage.getItem(memoryKey) === 'true') {
+      setIsPaid(true);
+    } else {
+      setIsPaid(false);
+    }
+  }, [name, facilityType, selectedMonths.length]);
 
   const toggleMonth = (mId) => {
     if (selectedMonths.includes(mId)) {
@@ -186,7 +203,7 @@ export default function App() {
     setMrfStreamsConfig(prev => prev.map(s => {
       if (s.id === id) {
         if (field === 'userWeight') {
-          // Clamp value between defined min/max guards to prevent physically impossible datasets
+          // Clamp value between defined min/max guards
           let num = value === '' ? '' : Number(value);
           if (num !== '') {
             if (num < s.min) num = s.min;
@@ -203,7 +220,11 @@ export default function App() {
   const handleGenerate = (e) => {
     e.preventDefault();
     if (generateDisabled) return;
-    setIsPaid(false);
+    
+    // Automatically re-verify memory just before generating
+    if (localStorage.getItem(getSessionKey()) !== 'true') {
+      setIsPaid(false);
+    }
 
     let monthlyDataMap = {};
 
@@ -245,7 +266,6 @@ export default function App() {
 
           logs.push({ date: dateStr, dayName, c1, c2, c3, c4, c5, c6, total: exactTotal });
         } else {
-          // Applies verified base fraction and normalizes daily variance noise to maintain exact 100% target average
           const baseNorm = activeMrfStreams.map(s => Number(s.userWeight || 0) / 100);
           let raw = baseNorm.map(r => r * (0.88 + random() * 0.24));
           let dynamicSum = raw.reduce((a, b) => a + b, 0);
@@ -309,6 +329,8 @@ export default function App() {
         } else if (result.paymentDetails) {
           setIsPaid(true);
           setIsProcessing(false);
+          // LAYER 1: SAVE TO BROWSER MEMORY UPON SUCCESS
+          localStorage.setItem(getSessionKey(), 'true');
           downloadMultiSheetExcel();
         }
       });
@@ -318,34 +340,70 @@ export default function App() {
     }
   };
 
+  // LAYER 2: Manual Cashfree Order ID Verification
+  const handleRestoreAccess = async () => {
+    if (!restoreOrderId.trim()) return alert("Please enter your Order ID");
+    setIsRestoring(true);
+
+    try {
+      const res = await fetch('/api/verify-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order_id: restoreOrderId.trim() })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setIsPaid(true);
+        setShowRestoreModal(false);
+        // Save to browser memory so they don't have to verify again on refresh
+        localStorage.setItem(getSessionKey(), 'true'); 
+        alert("Payment Verified! Dataset unlocked.");
+      } else {
+        alert("Verification Failed: " + data.message);
+      }
+    } catch (err) {
+      alert("Error contacting verification server.");
+    }
+    setIsRestoring(false);
+  };
+
   const formatVal = (v) => displayUnit === 'kg' ? Math.round(v * 1000) : v.toFixed(3);
 
   const downloadMultiSheetExcel = () => {
-    if (!generatedMonthlyData || !generatedConfig) return;
-    const u = displayUnit === 'kg' ? 'kg' : 'Tons';
-    
-    let headers = [];
-    if (generatedConfig.type === 'ULB') {
-      headers = ["Date", "Day", `Wet (${u})`, `Dry (${u})`, `Sanitary (${u})`, `Special Care/Hazardous (${u})`, `C&D (${u})`, `Inerts (${u})`, `Total (${u})`];
-    } else {
-      headers = ["Date", "Day", ...generatedConfig.streams.map(s => `${s.label} (${u})`), `Total Dry (${u})`];
-    }
+    try {
+      if (!generatedMonthlyData || !generatedConfig) {
+        alert("Wait for the data to finish calculating.");
+        return;
+      }
+      
+      const u = displayUnit === 'kg' ? 'kg' : 'Tons';
+      
+      let headers = [];
+      if (generatedConfig.type === 'ULB') {
+        headers = ["Date", "Day", `Wet (${u})`, `Dry (${u})`, `Sanitary (${u})`, `Special Care/Hazardous (${u})`, `C&D (${u})`, `Inerts (${u})`, `Total (${u})`];
+      } else {
+        headers = ["Date", "Day", ...generatedConfig.streams.map(s => `${s.label} (${u})`), `Total Dry (${u})`];
+      }
 
-    const wb = XLSX.utils.book_new();
-    selectedMonths.forEach((mId) => {
-      const sheetData = [headers, ...generatedMonthlyData[mId].map(r => {
-        if (generatedConfig.type === 'ULB') {
-          return [r.date, r.dayName, formatVal(r.c1), formatVal(r.c2), formatVal(r.c3), formatVal(r.c4), formatVal(r.c5), formatVal(r.c6), formatVal(r.total)];
-        } else {
-          const row = [r.date, r.dayName];
-          generatedConfig.streams.forEach(s => row.push(formatVal(r.streams[s.id])));
-          row.push(formatVal(r.total));
-          return row;
-        }
-      })];
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetData), MONTHS.find(m => m.id === mId)?.fullEn);
-    });
-      // Add this tracking block right before XLSX.writeFile
+      const wb = XLSX.utils.book_new();
+      
+      selectedMonths.forEach((mId) => {
+        const sheetData = [headers, ...generatedMonthlyData[mId].map(r => {
+          if (generatedConfig.type === 'ULB') {
+            return [r.date, r.dayName, formatVal(r.c1), formatVal(r.c2), formatVal(r.c3), formatVal(r.c4), formatVal(r.c5), formatVal(r.c6), formatVal(r.total)];
+          } else {
+            const row = [r.date, r.dayName];
+            generatedConfig.streams.forEach(s => row.push(formatVal(r.streams[s.id])));
+            row.push(formatVal(r.total));
+            return row;
+          }
+        })];
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetData), MONTHS.find(m => m.id === mId)?.fullEn);
+      });
+
+      // GA4 Tracking
       if (typeof window !== 'undefined' && window.gtag) {
         window.gtag('event', 'excel_download', {
           facility_type: facilityType,
@@ -358,7 +416,12 @@ export default function App() {
       
       const safeName = name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
       XLSX.writeFile(wb, `${safeName}_SWM_${selectedMonths.length}M.xlsx`);
-     };
+
+    } catch (error) {
+      console.error(error);
+      alert("Download blocked: " + error.message);
+    }
+  };
 
   const activeRows = generatedMonthlyData?.[activeTabMonth] || [];
   const visibleRows = isPaid ? activeRows : activeRows.slice(0, 5);
@@ -677,15 +740,46 @@ export default function App() {
                   <Lock style={{ color: '#059669' }} size={18} />
                   <h4 style={{ margin: '4px 0', color: '#065f46', fontSize: '15px' }}>Preview Locked (Days 1–5 Only)</h4>
                   <p style={{ margin: '4px 0 10px 0', color: '#047857', fontSize: '13px' }}>Pay ₹{pricing.total} to unlock complete dataset and multi-tab Excel (.xlsx) file.</p>
+                  
                   <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 20px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
                     {isProcessing ? 'Connecting...' : `Pay ₹${pricing.total} & Download Complete File`}
                   </button>
+
+                  {/* NEW RESTORE LINK (LAYER 2) */}
+                  <div style={{ marginTop: '15px' }}>
+                    <button type="button" onClick={() => setShowRestoreModal(true)} style={{ background: 'none', border: 'none', color: '#0369a1', textDecoration: 'underline', cursor: 'pointer', fontSize: '12px' }}>
+                      Already paid but download failed? Restore access.
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           )}
         </div>
       </div>
+
+      {/* RESTORE ACCESS MODAL (LAYER 2) */}
+      {showRestoreModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', maxWidth: '400px', width: '90%' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '16px', color: '#0f172a' }}>Restore Logbook Access</h3>
+            <p style={{ fontSize: '12px', color: '#475569', marginBottom: '15px' }}>Enter the Cashfree Order ID from your email/SMS receipt to verify your payment and unlock the download.</p>
+            <input 
+              type="text" 
+              placeholder="e.g. SWM_17105928..." 
+              value={restoreOrderId} 
+              onChange={(e) => setRestoreOrderId(e.target.value)}
+              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1', marginBottom: '15px', boxSizing: 'border-box' }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
+              <button onClick={() => setShowRestoreModal(false)} style={{ flex: 1, padding: '10px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+              <button onClick={handleRestoreAccess} disabled={isRestoring} style={{ flex: 1, padding: '10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                {isRestoring ? 'Verifying...' : 'Verify Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* POLICY POPUP MODAL */}
       {activePolicy && (
