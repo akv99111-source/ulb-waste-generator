@@ -164,17 +164,38 @@ export default function App() {
   const generateDisabled = facilityType === 'MRF' && isAdvancedMode && !isValidMrfTotal;
 
   // Generate a unique memory key based on what the user is currently typing
-  const getSessionKey = () => `crf_paid_${facilityType}_${name.replace(/\s+/g, '_')}_${selectedMonths.length}M`;
+  const getSessionKey = () => {
+    const cleanName = name.trim().toLowerCase().replace(/\s+/g, '_');
+    const cleanState = selectedState.trim().toLowerCase().replace(/\s+/g, '_');
+    return `crf_paid_${facilityType}_${cleanState}_${cleanName}_${selectedMonths.length}M`;
+  };
 
-  // LAYER 1: Check browser memory automatically when inputs change
+  // LAYER 1: Check browser memory with 12-hour expiry guard
   useEffect(() => {
-    const memoryKey = getSessionKey();
-    if (localStorage.getItem(memoryKey) === 'true') {
-      setIsPaid(true);
-    } else {
-      setIsPaid(false);
+    const rawData = localStorage.getItem(getSessionKey());
+    if (rawData) {
+      try {
+        const parsed = JSON.parse(rawData);
+        const TwelveHours = 12 * 60 * 60 * 1000;
+        if (parsed.paid && (Date.now() - parsed.timestamp < TwelveHours)) {
+          setIsPaid(true);
+          return;
+        }
+      } catch (e) {
+        if (rawData === 'true') {
+          setIsPaid(true);
+          return;
+        }
+      }
     }
-  }, [name, facilityType, selectedMonths.length]);
+    setIsPaid(false);
+  }, [name, facilityType, selectedState, selectedMonths.length]);
+
+  // Helper to mark session paid with current timestamp
+  const markSessionPaid = () => {
+    const memoryData = { paid: true, timestamp: Date.now() };
+    localStorage.setItem(getSessionKey(), JSON.stringify(memoryData));
+  };
 
   const toggleMonth = (mId) => {
     if (selectedMonths.includes(mId)) {
@@ -189,7 +210,26 @@ export default function App() {
     const freeMonths = Math.floor(count / 6);
     const billableMonths = count - freeMonths;
     const baseRate = isAdvancedMode ? 150 : 100;
-    return { count, freeMonths, billableMonths, baseRate, total: billableMonths * baseRate };
+    
+    const baseTotal = billableMonths * baseRate;
+    
+    // CASHFREE CHARGES (e.g., 2% fee + 18% GST = 2.36% effective rate)
+    // Adjust 0.0236 if your specific Cashfree account has a custom contracted rate
+    const effectiveFeeRate = 0.0236; 
+    
+    // Calculate total including gateway charges (rounded to nearest rupee)
+    const finalTotalWithCharges = Math.round(baseTotal / (1 - effectiveFeeRate));
+    const gatewayFee = finalTotalWithCharges - baseTotal;
+
+    return { 
+      count, 
+      freeMonths, 
+      billableMonths, 
+      baseRate, 
+      baseTotal, 
+      gatewayFee, 
+      total: finalTotalWithCharges 
+    };
   };
 
   const pricing = getPricingDetails();
@@ -220,11 +260,6 @@ export default function App() {
   const handleGenerate = (e) => {
     e.preventDefault();
     if (generateDisabled) return;
-    
-    // Automatically re-verify memory just before generating
-    if (localStorage.getItem(getSessionKey()) !== 'true') {
-      setIsPaid(false);
-    }
 
     let monthlyDataMap = {};
 
@@ -329,8 +364,7 @@ export default function App() {
         } else if (result.paymentDetails) {
           setIsPaid(true);
           setIsProcessing(false);
-          // LAYER 1: SAVE TO BROWSER MEMORY UPON SUCCESS
-          localStorage.setItem(getSessionKey(), 'true');
+          markSessionPaid();
           downloadMultiSheetExcel();
         }
       });
@@ -340,7 +374,7 @@ export default function App() {
     }
   };
 
-  // LAYER 2: Manual Cashfree Order ID Verification
+  // LAYER 2: Manual Cashfree Order ID Verification (Fixed)
   const handleRestoreAccess = async () => {
     if (!restoreOrderId.trim()) return alert("Please enter your Order ID");
     setIsRestoring(true);
@@ -357,8 +391,7 @@ export default function App() {
       if (data.success) {
         setIsPaid(true);
         setShowRestoreModal(false);
-        // Save to browser memory so they don't have to verify again on refresh
-        localStorage.setItem(getSessionKey(), 'true'); 
+        markSessionPaid(); // FIXED: Now uses timestamped local storage helper
         alert("Payment Verified! Dataset unlocked.");
       } else {
         alert("Verification Failed: " + data.message);
@@ -629,11 +662,14 @@ export default function App() {
             <div style={{ marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap' }}>
                 <strong style={{ fontSize: '13px' }}>{lang === 'hi' ? 'माह चुनें (पूरे वर्ष तक):' : 'Select Months (Up to full year):'}</strong>
-                <span style={{ color: '#059669', fontWeight: 'bold', fontSize: '13px', background: '#ecfdf5', padding: '4px 10px', borderRadius: '4px', border: '1px solid #a7f3d0' }}>
-                  {pricing.count} {lang === 'hi' ? 'माह' : 'Month/s'} 
-                  {pricing.freeMonths > 0 && <span style={{ color: '#047857' }}> (Includes {pricing.freeMonths} Free)</span>} 
-                  {' '}— ₹{pricing.total}
+               <span style={{ color: '#059669', fontWeight: 'bold', fontSize: '13px', background: '#ecfdf5', padding: '4px 10px', borderRadius: '4px', border: '1px solid #a7f3d0' }}>
+                {pricing.count} {lang === 'hi' ? 'माह' : 'Month/s'} 
+                {pricing.freeMonths > 0 && <span style={{ color: '#047857' }}> (Includes {pricing.freeMonths} Free)</span>} 
+                {' '}— ₹{pricing.total} 
+                <span style={{ fontSize: '10px', color: '#047857', marginLeft: '4px' }}>
+                  (₹{pricing.baseTotal} + ₹{pricing.gatewayFee} PG Fee)
                 </span>
+              </span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '6px' }}>
                 {MONTHS.map((m) => {
@@ -676,14 +712,27 @@ export default function App() {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
                 <span style={{ fontSize: '13px', fontWeight: 'bold' }}>{name} ({currentStateObj.nameEn}) — {activeMonthObj?.fullEn} {startYear}</span>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   <button onClick={() => setDisplayUnit(displayUnit === 'Tons' ? 'kg' : 'Tons')} style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
                     Unit: <strong>{displayUnit}</strong>
                   </button>
                   {isPaid ? (
-                    <button onClick={downloadMultiSheetExcel} style={{ padding: '6px 12px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                      <Download size={13} /> Export Excel (.xlsx)
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button onClick={downloadMultiSheetExcel} style={{ padding: '6px 12px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                        <Download size={13} /> Export Excel (.xlsx)
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          localStorage.removeItem(getSessionKey());
+                          setIsPaid(false);
+                          alert("Paid session cleared from this browser.");
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#dc2626', textDecoration: 'underline', cursor: 'pointer', fontSize: '11px' }}
+                      >
+                        Clear Session
+                      </button>
+                    </div>
                   ) : (
                     <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '6px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
                       {isProcessing ? 'Wait...' : `Pay ₹${pricing.total} to Unlock`}
@@ -745,7 +794,6 @@ export default function App() {
                     {isProcessing ? 'Connecting...' : `Pay ₹${pricing.total} & Download Complete File`}
                   </button>
 
-                  {/* NEW RESTORE LINK (LAYER 2) */}
                   <div style={{ marginTop: '15px' }}>
                     <button type="button" onClick={() => setShowRestoreModal(true)} style={{ background: 'none', border: 'none', color: '#0369a1', textDecoration: 'underline', cursor: 'pointer', fontSize: '12px' }}>
                       Already paid but download failed? Restore access.
@@ -758,7 +806,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* RESTORE ACCESS MODAL (LAYER 2) */}
+      {/* RESTORE ACCESS MODAL */}
       {showRestoreModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', maxWidth: '400px', width: '90%' }}>
