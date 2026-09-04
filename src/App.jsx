@@ -214,7 +214,6 @@ export default function App() {
     const baseTotal = billableMonths * baseRate;
     
     // CASHFREE CHARGES (e.g., 2% fee + 18% GST = 2.36% effective rate)
-    // Adjust 0.0236 if your specific Cashfree account has a custom contracted rate
     const effectiveFeeRate = 0.0236; 
     
     // Calculate total including gateway charges (rounded to nearest rupee)
@@ -243,7 +242,6 @@ export default function App() {
     setMrfStreamsConfig(prev => prev.map(s => {
       if (s.id === id) {
         if (field === 'userWeight') {
-          // Clamp value between defined min/max guards
           let num = value === '' ? '' : Number(value);
           if (num !== '') {
             if (num < s.min) num = s.min;
@@ -374,7 +372,6 @@ export default function App() {
     }
   };
 
-  // LAYER 2: Manual Cashfree Order ID Verification (Fixed)
   const handleRestoreAccess = async () => {
     if (!restoreOrderId.trim()) return alert("Please enter your Order ID");
     setIsRestoring(true);
@@ -391,7 +388,7 @@ export default function App() {
       if (data.success) {
         setIsPaid(true);
         setShowRestoreModal(false);
-        markSessionPaid(); // FIXED: Now uses timestamped local storage helper
+        markSessionPaid();
         alert("Payment Verified! Dataset unlocked.");
       } else {
         alert("Verification Failed: " + data.message);
@@ -436,7 +433,6 @@ export default function App() {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetData), MONTHS.find(m => m.id === mId)?.fullEn);
       });
 
-      // GA4 Tracking
       if (typeof window !== 'undefined' && window.gtag) {
         window.gtag('event', 'excel_download', {
           facility_type: facilityType,
@@ -587,7 +583,7 @@ export default function App() {
                     )}
                   </div>
                   
-                 {/* MRF ADVANCED MODE TOGGLE */}
+                  {/* MRF ADVANCED MODE TOGGLE */}
                   <div style={{ gridColumn: '1 / -1', marginTop: '10px', background: isAdvancedMode ? '#fffbeb' : '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#0f172a', cursor: 'pointer', fontSize: '13px' }}>
                       <input type="checkbox" checked={isAdvancedMode} onChange={(e) => setIsAdvancedMode(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
@@ -639,6 +635,9 @@ export default function App() {
                       </div>
                     )}
                   </div>
+                </>
+              )}
+
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'वर्ष' : 'Year'}</label>
                 <input style={inputStyle} type="number" required value={startYear} onChange={(e) => setStartYear(Number(e.target.value))} />
@@ -667,14 +666,14 @@ export default function App() {
             <div style={{ marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap' }}>
                 <strong style={{ fontSize: '13px' }}>{lang === 'hi' ? 'माह चुनें (पूरे वर्ष तक):' : 'Select Months (Up to full year):'}</strong>
-               <span style={{ color: '#059669', fontWeight: 'bold', fontSize: '13px', background: '#ecfdf5', padding: '4px 10px', borderRadius: '4px', border: '1px solid #a7f3d0' }}>
-                {pricing.count} {lang === 'hi' ? 'माह' : 'Month/s'} 
-                {pricing.freeMonths > 0 && <span style={{ color: '#047857' }}> (Includes {pricing.freeMonths} Free)</span>} 
-                {' '}— ₹{pricing.total} 
-                <span style={{ fontSize: '10px', color: '#047857', marginLeft: '4px' }}>
-                  (₹{pricing.baseTotal} + ₹{pricing.gatewayFee} PG Fee)
+                <span style={{ color: '#059669', fontWeight: 'bold', fontSize: '13px', background: '#ecfdf5', padding: '4px 10px', borderRadius: '4px', border: '1px solid #a7f3d0' }}>
+                  {pricing.count} {lang === 'hi' ? 'माह' : 'Month/s'} 
+                  {pricing.freeMonths > 0 && <span style={{ color: '#047857' }}> (Includes {pricing.freeMonths} Free)</span>} 
+                  {' '}— ₹{pricing.total} 
+                  <span style={{ fontSize: '10px', color: '#047857', marginLeft: '4px' }}>
+                    (₹{pricing.baseTotal} + ₹{pricing.gatewayFee} PG Fee)
+                  </span>
                 </span>
-              </span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '6px' }}>
                 {MONTHS.map((m) => {
