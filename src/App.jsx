@@ -847,8 +847,8 @@ export default function App() {
             {activePolicy === 'contact' && (
               <div style={{ fontSize: '13px', lineHeight: '1.6', color: '#334155' }}>
                 <p><strong>Entity Name:</strong> Consilience Research Foundation (CRF)</p>
-                <p><strong>Email:</strong> contact@consilienceresearch.in</p>
-                <p><strong>Address:</strong> Arjunganj, Lucknow, Uttar Pradesh, India - 226002</p>
+                <p><strong>Email:</strong> crginfomail@gmail.com</p>
+                <p><strong>Address:</strong> Lucknow, Uttar Pradesh, India </p>
                 <p><strong>Service Pricing:</strong> ₹100/mo (Standard) or ₹150/mo (Advanced), with Volume Pricing available.</p>
               </div>
             )}
