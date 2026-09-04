@@ -468,7 +468,7 @@ export default function App() {
               </span>
               <h1 style={{ fontSize: '22px', margin: '6px 0 2px 0', fontWeight: '800' }}>
                 <Building2 size={22} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लोगबुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}
+                {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लॉग-बुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}
               </h1>
               <p style={{ fontSize: '13px', margin: 0, color: '#a7f3d0' }}>
                 {lang === 'hi' ? '4-स्ट्रीम अपशिष्ट पृथक्कीकरण एवं अखिल भारतीय राज्यवार एडजस्टमेंट टूल' : 'Automated 4-Stream Logbook Engine with Pan-India State-Wise Calibration'}
@@ -588,7 +588,7 @@ export default function App() {
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#0f172a', cursor: 'pointer', fontSize: '13px' }}>
                       <input type="checkbox" checked={isAdvancedMode} onChange={(e) => setIsAdvancedMode(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
                       {lang === 'hi' 
-                        ? 'एडवांस्ड एमआरएफ कॉन्फ़िगरेशन सक्षम करें (कस्टम स्ट्रीम और एडजस्टमेंट) — मूल दर: ₹150/माह' 
+                        ? '!! ADVANCE Log-Book !! एडवांस्ड एमआरएफ कॉन्फ़िगरेशन सक्षम करें (कस्टम स्ट्रीम और एडजस्टमेंट) — मूल दर: ₹150/माह' 
                         : 'Enable Advanced MRF Configuration (Custom Streams & Adjustments) — Base Rate: ₹150/mo'}
                     </label>
 
@@ -691,7 +691,7 @@ export default function App() {
             </div>
 
             <button type="submit" disabled={generateDisabled} style={{ width: '100%', padding: '12px', background: generateDisabled ? '#94a3b8' : '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: generateDisabled ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
-              {generateDisabled ? 'Please fix total percentage to exactly 100%' : (lang === 'hi' ? 'लोगबुक जनरेट करें →' : 'Generate Dataset →')}
+              {generateDisabled ? 'Please fix total percentage to exactly 100%' : (lang === 'hi' ? 'लॉग-बुक जनरेट करें →' : 'Generate Dataset →')}
             </button>
           </form>
 
