@@ -639,28 +639,6 @@ export default function App() {
                       </div>
                     )}
                   </div>
-
-                        {/* STRICT 100% VALIDATION COUNTER */}
-                        <div style={{ 
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-                          marginTop: '15px', padding: '10px 15px', borderRadius: '6px', 
-                          background: isValidMrfTotal ? '#dcfce7' : '#fee2e2', 
-                          border: isValidMrfTotal ? '1px solid #22c55e' : '1px solid #ef4444' 
-                        }}>
-                           <span style={{ fontWeight: 'bold', color: isValidMrfTotal ? '#166534' : '#991b1b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              {!isValidMrfTotal && <AlertCircle size={16} />} 
-                              Total Composition: {totalMrfPercentage}%
-                           </span>
-                           {!isValidMrfTotal && (
-                             <span style={{ fontSize: '12px', color: '#991b1b', fontWeight: 'bold' }}>Total must equal exactly 100% to proceed.</span>
-                           )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'वर्ष' : 'Year'}</label>
                 <input style={inputStyle} type="number" required value={startYear} onChange={(e) => setStartYear(Number(e.target.value))} />
