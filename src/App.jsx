@@ -114,7 +114,7 @@ export default function App() {
   const [selectedState, setSelectedState] = useState('Uttar Pradesh');
   const [facilityType, setFacilityType] = useState('ULB');
   const [name, setName] = useState('Nagar Palika Parishad');
-  const [phone, setPhone] = useState(''); // Added Phone State Variable
+  const [phone, setPhone] = useState('');
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   
   // ULB state variables
@@ -320,7 +320,6 @@ export default function App() {
   };
 
   const handlePayment = async () => {
-    // Validate phone number format before checkout
     if (!phone || phone.length < 10) {
       alert(lang === 'hi' ? 'कृपया एक वैध 10-अंकों का मोबाइल नंबर दर्ज करें।' : 'Please enter a valid 10-digit mobile number.');
       return;
@@ -405,7 +404,7 @@ export default function App() {
 
   const formatVal = (v) => displayUnit === 'kg' ? Math.round(v * 1000) : v.toFixed(3);
 
- const downloadMultiSheetExcel = () => {
+  const downloadMultiSheetExcel = () => {
     try {
       if (!generatedMonthlyData || !generatedConfig) {
         alert("Wait for the data to finish calculating.");
@@ -437,7 +436,6 @@ export default function App() {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetData), MONTHS.find(m => m.id === mId)?.fullEn);
       });
 
-      // GA4 Tracking
       if (typeof window !== 'undefined' && window.gtag) {
         window.gtag('event', 'excel_download', {
           facility_type: facilityType,
@@ -448,13 +446,11 @@ export default function App() {
         });
       }
       
-      // Dynamic Filename Generation Logic
       const firstMonthObj = MONTHS.find(m => m.id === selectedMonths[0]);
       const monthStr = firstMonthObj ? firstMonthObj.shortEn : 'Jan';
-      const yearStr = String(startYear).slice(-2); // Extracts last two digits e.g. "2026" -> "26"
+      const yearStr = String(startYear).slice(-2);
       const safeName = name.trim().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
       
-      // Resulting format: ULB_Nagar_Palika_Parishad_Mar_26.xlsx or MRF_Nagar_Palika_Parishad_Mar_26.xlsx
       const customFileName = `${facilityType}_${safeName}_${monthStr}_${yearStr}.xlsx`;
 
       XLSX.writeFile(wb, customFileName);
@@ -523,7 +519,6 @@ export default function App() {
                 <input style={inputStyle} type="text" required value={name} onChange={(e) => setName(e.target.value)} />
               </div>
 
-              {/* Added Mobile Number Field Required for Cashfree API */}
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Phone size={12} /> {lang === 'hi' ? 'मोबाइल नंबर (रसीद के लिए)' : 'Mobile Number (for Receipt)'}
@@ -774,21 +769,18 @@ export default function App() {
                 </div>
               </div>
 
-             {/* NEW WRAPPER WITH ANTI-COPY STYLES */}
-<div 
-  onContextMenu={(e) => e.preventDefault()} 
-  style={{ 
-    overflowX: 'auto', 
-    border: '1px solid #cbd5e1', 
-    borderRadius: '4px',
-    userSelect: isPaid ? 'text' : 'none', 
-    WebkitUserSelect: isPaid ? 'text' : 'none'
-  }}
->
-  <table cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '700px' }}>
-    ...
-  </table>
-</div>
+              {/* TABLE CONTAINER WITH ANTI-COPY PROTECTION */}
+              <div 
+                onContextMenu={(e) => e.preventDefault()} 
+                style={{ 
+                  overflowX: 'auto', 
+                  border: '1px solid #cbd5e1', 
+                  borderRadius: '4px',
+                  userSelect: isPaid ? 'text' : 'none', 
+                  WebkitUserSelect: isPaid ? 'text' : 'none'
+                }}
+              >
+                <table cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '700px' }}>
                   <thead>
                     <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
                       <th>Date</th><th>Day</th>
