@@ -405,7 +405,7 @@ export default function App() {
 
   const formatVal = (v) => displayUnit === 'kg' ? Math.round(v * 1000) : v.toFixed(3);
 
-  const downloadMultiSheetExcel = () => {
+ const downloadMultiSheetExcel = () => {
     try {
       if (!generatedMonthlyData || !generatedConfig) {
         alert("Wait for the data to finish calculating.");
@@ -437,6 +437,7 @@ export default function App() {
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetData), MONTHS.find(m => m.id === mId)?.fullEn);
       });
 
+      // GA4 Tracking
       if (typeof window !== 'undefined' && window.gtag) {
         window.gtag('event', 'excel_download', {
           facility_type: facilityType,
@@ -447,8 +448,16 @@ export default function App() {
         });
       }
       
-      const safeName = name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
-      XLSX.writeFile(wb, `${safeName}_SWM_${selectedMonths.length}M.xlsx`);
+      // Dynamic Filename Generation Logic
+      const firstMonthObj = MONTHS.find(m => m.id === selectedMonths[0]);
+      const monthStr = firstMonthObj ? firstMonthObj.shortEn : 'Jan';
+      const yearStr = String(startYear).slice(-2); // Extracts last two digits e.g. "2026" -> "26"
+      const safeName = name.trim().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+      
+      // Resulting format: ULB_Nagar_Palika_Parishad_Mar_26.xlsx or MRF_Nagar_Palika_Parishad_Mar_26.xlsx
+      const customFileName = `${facilityType}_${safeName}_${monthStr}_${yearStr}.xlsx`;
+
+      XLSX.writeFile(wb, customFileName);
 
     } catch (error) {
       console.error(error);
