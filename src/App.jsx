@@ -774,8 +774,21 @@ export default function App() {
                 </div>
               </div>
 
-              <div style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}>
-                <table cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '700px' }}>
+             {/* NEW WRAPPER WITH ANTI-COPY STYLES */}
+<div 
+  onContextMenu={(e) => e.preventDefault()} 
+  style={{ 
+    overflowX: 'auto', 
+    border: '1px solid #cbd5e1', 
+    borderRadius: '4px',
+    userSelect: isPaid ? 'text' : 'none', 
+    WebkitUserSelect: isPaid ? 'text' : 'none'
+  }}
+>
+  <table cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '700px' }}>
+    ...
+  </table>
+</div>
                   <thead>
                     <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
                       <th>Date</th><th>Day</th>
