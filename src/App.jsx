@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck, MapPin, AlertCircle } from 'lucide-react';
+import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck, MapPin, AlertCircle, Phone } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const MONTHS = [
@@ -114,6 +114,7 @@ export default function App() {
   const [selectedState, setSelectedState] = useState('Uttar Pradesh');
   const [facilityType, setFacilityType] = useState('ULB');
   const [name, setName] = useState('Nagar Palika Parishad');
+  const [phone, setPhone] = useState(''); // Added Phone State Variable
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   
   // ULB state variables
@@ -157,20 +158,17 @@ export default function App() {
   const estimatedDailyWaste = ((Number(population) * parsedPerCapita) / 1000000).toFixed(2);
   const mrfCapacityUtilization = Number(mrfMaxCapacityTons) > 0 ? (Number(mrfDailyDryTons) / Number(mrfMaxCapacityTons)) * 100 : 0;
 
-  // Live total percentage calculation for Advanced UI feedback
   const activeMrfStreams = isAdvancedMode ? mrfStreamsConfig.filter(s => s.active) : mrfStreamsConfig.filter(s => s.isDefault);
   const totalMrfPercentage = activeMrfStreams.reduce((acc, s) => acc + Number(s.userWeight || 0), 0);
   const isValidMrfTotal = totalMrfPercentage === 100;
   const generateDisabled = facilityType === 'MRF' && isAdvancedMode && !isValidMrfTotal;
 
-  // Generate a unique memory key based on what the user is currently typing
   const getSessionKey = () => {
     const cleanName = name.trim().toLowerCase().replace(/\s+/g, '_');
     const cleanState = selectedState.trim().toLowerCase().replace(/\s+/g, '_');
     return `crf_paid_${facilityType}_${cleanState}_${cleanName}_${selectedMonths.length}M`;
   };
 
-  // LAYER 1: Check browser memory with 12-hour expiry guard
   useEffect(() => {
     const rawData = localStorage.getItem(getSessionKey());
     if (rawData) {
@@ -191,7 +189,6 @@ export default function App() {
     setIsPaid(false);
   }, [name, facilityType, selectedState, selectedMonths.length]);
 
-  // Helper to mark session paid with current timestamp
   const markSessionPaid = () => {
     const memoryData = { paid: true, timestamp: Date.now() };
     localStorage.setItem(getSessionKey(), JSON.stringify(memoryData));
@@ -212,11 +209,8 @@ export default function App() {
     const baseRate = isAdvancedMode ? 150 : 100;
     
     const baseTotal = billableMonths * baseRate;
-    
-    // CASHFREE CHARGES (e.g., 2% fee + 18% GST = 2.36% effective rate)
     const effectiveFeeRate = 0.0236; 
     
-    // Calculate total including gateway charges (rounded to nearest rupee)
     const finalTotalWithCharges = Math.round(baseTotal / (1 - effectiveFeeRate));
     const gatewayFee = finalTotalWithCharges - baseTotal;
 
@@ -326,6 +320,12 @@ export default function App() {
   };
 
   const handlePayment = async () => {
+    // Validate phone number format before checkout
+    if (!phone || phone.length < 10) {
+      alert(lang === 'hi' ? 'कृपया एक वैध 10-अंकों का मोबाइल नंबर दर्ज करें।' : 'Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
     setIsProcessing(true);
 
     if (!window.Cashfree) {
@@ -340,14 +340,14 @@ export default function App() {
 
     try {
       const res = await fetch('/api/create-order', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ 
-    amount: pricing.total, 
-    customerName: name,
-    customerPhone: userPhone // Add state variable for phone number if collected in UI
-  })
-});
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          amount: pricing.total, 
+          customerName: name,
+          customerPhone: phone 
+        })
+      });
 
       const order = await res.json();
       if (!order.payment_session_id) throw new Error(order.message || 'Failed to initialize payment session.');
@@ -512,6 +512,22 @@ export default function App() {
               <div>
                 <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'निकाय / एमआरएफ का नाम' : 'ULB / MRF Name'}</label>
                 <input style={inputStyle} type="text" required value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+
+              {/* Added Mobile Number Field Required for Cashfree API */}
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Phone size={12} /> {lang === 'hi' ? 'मोबाइल नंबर (रसीद के लिए)' : 'Mobile Number (for Receipt)'}
+                </label>
+                <input 
+                  style={inputStyle} 
+                  type="tel" 
+                  maxLength={10} 
+                  placeholder="9876543210" 
+                  required 
+                  value={phone} 
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} 
+                />
               </div>
 
               {facilityType === 'ULB' ? (
