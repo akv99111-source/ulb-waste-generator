@@ -587,16 +587,22 @@ export default function App() {
                     )}
                   </div>
                   
-                  {/* MRF ADVANCED MODE TOGGLE */}
+                 {/* MRF ADVANCED MODE TOGGLE */}
                   <div style={{ gridColumn: '1 / -1', marginTop: '10px', background: isAdvancedMode ? '#fffbeb' : '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#0f172a', cursor: 'pointer', fontSize: '13px' }}>
                       <input type="checkbox" checked={isAdvancedMode} onChange={(e) => setIsAdvancedMode(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
-                      Enable Advanced MRF Configuration (Custom Streams & Adjustments) — Base Rate: ₹150/mo
+                      {lang === 'hi' 
+                        ? 'एडवांस्ड एमआरएफ कॉन्फ़िगरेशन सक्षम करें (कस्टम स्ट्रीम और एडजस्टमेंट) — मूल दर: ₹150/माह' 
+                        : 'Enable Advanced MRF Configuration (Custom Streams & Adjustments) — Base Rate: ₹150/mo'}
                     </label>
 
                     {isAdvancedMode && (
                       <div style={{ marginTop: '14px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
-                        <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 10px 0' }}>Select specific sorted streams and input indicative composition percentages representing the real arrival state (accounting for informal skimming).</p>
+                        <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 10px 0' }}>
+                          {lang === 'hi' 
+                            ? 'विशिष्ट पृथक्कृत स्ट्रीम चुनें और वास्तविक आवक स्थिति (अनौपचारिक बीनने वालों द्वारा निकाले गए कचरे को ध्यान में रखते हुए) को दर्शाने वाले सांकेतिक प्रतिशत दर्ज करें।' 
+                            : 'Select specific sorted streams and input indicative composition percentages representing the real arrival state (accounting for informal skimming).'}
+                        </p>
                         
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
                           {mrfStreamsConfig.map(stream => (
@@ -612,6 +618,27 @@ export default function App() {
                             </div>
                           ))}
                         </div>
+
+                        {/* STRICT 100% VALIDATION COUNTER */}
+                        <div style={{ 
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
+                          marginTop: '15px', padding: '10px 15px', borderRadius: '6px', 
+                          background: isValidMrfTotal ? '#dcfce7' : '#fee2e2', 
+                          border: isValidMrfTotal ? '1px solid #22c55e' : '1px solid #ef4444' 
+                        }}>
+                           <span style={{ fontWeight: 'bold', color: isValidMrfTotal ? '#166534' : '#991b1b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {!isValidMrfTotal && <AlertCircle size={16} />} 
+                              {lang === 'hi' ? 'कुल संरचना:' : 'Total Composition:'} {totalMrfPercentage}%
+                           </span>
+                           {!isValidMrfTotal && (
+                             <span style={{ fontSize: '12px', color: '#991b1b', fontWeight: 'bold' }}>
+                               {lang === 'hi' ? 'आगे बढ़ने के लिए कुल योग सटीक 100% होना चाहिए।' : 'Total must equal exactly 100% to proceed.'}
+                             </span>
+                           )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
                         {/* STRICT 100% VALIDATION COUNTER */}
                         <div style={{ 
