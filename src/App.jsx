@@ -345,8 +345,20 @@ export default function App() {
       })];
       XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetData), MONTHS.find(m => m.id === mId)?.fullEn);
     });
-    XLSX.writeFile(wb, `${name.replace(/\s+/g, '_')}_SWM_${selectedMonths.length}M.xlsx`);
-  };
+      // Add this tracking block right before XLSX.writeFile
+      if (typeof window !== 'undefined' && window.gtag) {
+        window.gtag('event', 'excel_download', {
+          facility_type: facilityType,
+          ulb_name: name,
+          selected_state: selectedState,
+          months_count: selectedMonths.length,
+          mode: isAdvancedMode ? 'Advanced' : 'Standard'
+        });
+      }
+      
+      const safeName = name.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+      XLSX.writeFile(wb, `${safeName}_SWM_${selectedMonths.length}M.xlsx`);
+     };
 
   const activeRows = generatedMonthlyData?.[activeTabMonth] || [];
   const visibleRows = isPaid ? activeRows : activeRows.slice(0, 5);
