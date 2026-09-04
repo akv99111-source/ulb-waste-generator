@@ -340,10 +340,14 @@ export default function App() {
 
     try {
       const res = await fetch('/api/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: pricing.total, customerName: name })
-      });
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ 
+    amount: pricing.total, 
+    customerName: name,
+    customerPhone: userPhone // Add state variable for phone number if collected in UI
+  })
+});
 
       const order = await res.json();
       if (!order.payment_session_id) throw new Error(order.message || 'Failed to initialize payment session.');
