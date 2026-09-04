@@ -475,7 +475,7 @@ export default function App() {
                 {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लॉग-बुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}
               </h1>
               <p style={{ fontSize: '13px', margin: 0, color: '#a7f3d0' }}>
-                {lang === 'hi' ? '4-स्ट्रीम अपशिष्ट पृथक्कीकरण एवं अखिल भारतीय राज्यवार एडजस्टमेंट टूल' : 'Automated 4-Stream Logbook Engine with Pan-India State-Wise Calibration'}
+                {lang === 'hi' ? '4-स्ट्रीम अपशिष्ट पृथक्कीकरण एवं अखिल भारतीय राज्यवार एडजस्टमेंट टूल || **केवल एजुकेशन व् एस्टीमेशन हेतु ' : 'Automated 4-Stream Logbook Engine with Pan-India State-Wise Calibration || ** Only for Educational and Estimation Purpose'}
               </p>
             </div>
             <button type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#047857', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
