@@ -80,6 +80,14 @@ const DEFAULT_MRF_STREAMS = [
   { id: 'organic_rejects', label: 'Organic Rejects', defaultWeight: 0, min: 0, max: 100, isDefault: false },
 ];
 
+const DEFAULT_MIXED_STREAMS = [
+  { id: 'trommel_undersize', label: 'Trommel Fines (<80mm / Organics)', defaultWeight: 45, min: 10, max: 80, isDefault: true },
+  { id: 'trommel_oversize_rdf', label: 'RDF Combustibles (>80mm)', defaultWeight: 25, min: 5, max: 60, isDefault: true },
+  { id: 'recovered_recyclables', label: 'Sorted Recyclables (Plastics/Metals)', defaultWeight: 10, min: 1, max: 30, isDefault: true },
+  { id: 'inerts_stones', label: 'Inerts, Silt & Stones', defaultWeight: 12, min: 2, max: 40, isDefault: true },
+  { id: 'process_rejects', label: 'Process / Landfill Rejects', defaultWeight: 8, min: 1, max: 30, isDefault: true },
+];
+
 const getSeasonalFractionsULB = (m, regionKey) => {
   const profile = REGION_PROFILES[regionKey] || REGION_PROFILES.north_plains;
   if ([5, 6, 7].includes(m)) return [profile.wetBase + 0.05, profile.dryBase - 0.02, 0.04, 0.02, 0.05, 0.12];
@@ -98,6 +106,7 @@ const cyrb128 = (str) => {
   }
   return (Math.imul(h3 ^ (h1 >>> 18), 597399067) ^ Math.imul(h4 ^ (h2 >>> 22), 2869860233) ^ Math.imul(h1 ^ (h3 >>> 17), 951274213) ^ Math.imul(h2 ^ (h4 >>> 19), 2716044179)) >>> 0;
 };
+
 const mulberry32 = (a) => {
   return function() {
     var t = a += 0x6D2B79F5;
@@ -112,7 +121,7 @@ const inputStyle = { width: '100%', padding: '9px', borderRadius: '6px', border:
 export default function App() {
   const [lang, setLang] = useState('hi');
   const [selectedState, setSelectedState] = useState('Uttar Pradesh');
-  const [facilityType, setFacilityType] = useState('ULB');
+  const [facilityType, setFacilityType] = useState('ULB'); // Options: 'ULB', 'MRF', 'MIXED_PLANT'
   const [name, setName] = useState('Nagar Palika Parishad');
   const [phone, setPhone] = useState('');
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
@@ -125,11 +134,14 @@ export default function App() {
   const [actualAverageTpd, setActualAverageTpd] = useState(35);
   const [referencePeriod, setReferencePeriod] = useState(30);
 
-  // MRF state variables
+  // MRF & Mixed Plant state variables
   const [mrfDailyDryTons, setMrfDailyDryTons] = useState(15);
   const [mrfMaxCapacityTons, setMrfMaxCapacityTons] = useState(25);
   const [mrfStreamsConfig, setMrfStreamsConfig] = useState(
     DEFAULT_MRF_STREAMS.map(s => ({ ...s, active: s.isDefault, userWeight: s.defaultWeight }))
+  );
+  const [mixedStreamsConfig, setMixedStreamsConfig] = useState(
+    DEFAULT_MIXED_STREAMS.map(s => ({ ...s, active: s.isDefault, userWeight: s.defaultWeight }))
   );
   
   const [startYear, setStartYear] = useState(2026);
@@ -158,10 +170,12 @@ export default function App() {
   const estimatedDailyWaste = ((Number(population) * parsedPerCapita) / 1000000).toFixed(2);
   const mrfCapacityUtilization = Number(mrfMaxCapacityTons) > 0 ? (Number(mrfDailyDryTons) / Number(mrfMaxCapacityTons)) * 100 : 0;
 
-  const activeMrfStreams = isAdvancedMode ? mrfStreamsConfig.filter(s => s.active) : mrfStreamsConfig.filter(s => s.isDefault);
-  const totalMrfPercentage = activeMrfStreams.reduce((acc, s) => acc + Number(s.userWeight || 0), 0);
-  const isValidMrfTotal = totalMrfPercentage === 100;
-  const generateDisabled = facilityType === 'MRF' && isAdvancedMode && !isValidMrfTotal;
+  // Stream Selection & Mass Balance Logic
+  const currentStreamConfig = facilityType === 'MIXED_PLANT' ? mixedStreamsConfig : mrfStreamsConfig;
+  const activeStreams = isAdvancedMode ? currentStreamConfig.filter(s => s.active) : currentStreamConfig.filter(s => s.isDefault);
+  const totalPercentage = activeStreams.reduce((acc, s) => acc + Number(s.userWeight || 0), 0);
+  const isValidTotal = totalPercentage === 100;
+  const generateDisabled = facilityType !== 'ULB' && isAdvancedMode && !isValidTotal;
 
   const getSessionKey = () => {
     const cleanName = name.trim().toLowerCase().replace(/\s+/g, '_');
@@ -202,11 +216,14 @@ export default function App() {
     }
   };
 
+  // PRICING CALCULATION LOGIC INCLUDING FLAT 200/mo FOR MIXED WASTE
   const getPricingDetails = () => {
     const count = selectedMonths.length;
     const freeMonths = Math.floor(count / 6);
     const billableMonths = count - freeMonths;
-    const baseRate = isAdvancedMode ? 150 : 100;
+    
+    // Flat ₹200/mo for Mixed Waste; otherwise ₹150 (Advanced) or ₹100 (Standard)
+    const baseRate = facilityType === 'MIXED_PLANT' ? 200 : (isAdvancedMode ? 150 : 100);
     
     const baseTotal = billableMonths * baseRate;
     const effectiveFeeRate = 0.0236; 
@@ -214,15 +231,7 @@ export default function App() {
     const finalTotalWithCharges = Math.round(baseTotal / (1 - effectiveFeeRate));
     const gatewayFee = finalTotalWithCharges - baseTotal;
 
-    return { 
-      count, 
-      freeMonths, 
-      billableMonths, 
-      baseRate, 
-      baseTotal, 
-      gatewayFee, 
-      total: finalTotalWithCharges 
-    };
+    return { count, freeMonths, billableMonths, baseRate, baseTotal, gatewayFee, total: finalTotalWithCharges };
   };
 
   const pricing = getPricingDetails();
@@ -233,7 +242,8 @@ export default function App() {
   };
 
   const updateStreamConfig = (id, field, value) => {
-    setMrfStreamsConfig(prev => prev.map(s => {
+    const setConfig = facilityType === 'MIXED_PLANT' ? setMixedStreamsConfig : setMrfStreamsConfig;
+    setConfig(prev => prev.map(s => {
       if (s.id === id) {
         if (field === 'userWeight') {
           let num = value === '' ? '' : Number(value);
@@ -285,7 +295,7 @@ export default function App() {
 
           let c1 = Number((dailyTotal * norm[0]).toFixed(3));
           let c2 = Number((dailyTotal * norm[1]).toFixed(3));
-          let c3 = Number((dailyTotal * norm[2]).toFixed(3));
+          let c3 = Number((dailyTotal * norm[3]).toFixed(3));
           let c4 = Number((dailyTotal * norm[3]).toFixed(3));
           let c5 = Number((dailyTotal * norm[4]).toFixed(3));
           let c6 = Number((dailyTotal * norm[5]).toFixed(3));
@@ -293,7 +303,7 @@ export default function App() {
 
           logs.push({ date: dateStr, dayName, c1, c2, c3, c4, c5, c6, total: exactTotal });
         } else {
-          const baseNorm = activeMrfStreams.map(s => Number(s.userWeight || 0) / 100);
+          const baseNorm = activeStreams.map(s => Number(s.userWeight || 0) / 100);
           let raw = baseNorm.map(r => r * (0.88 + random() * 0.24));
           let dynamicSum = raw.reduce((a, b) => a + b, 0);
           let dynamicNorm = raw.map(r => r / dynamicSum);
@@ -301,7 +311,7 @@ export default function App() {
           let rowStreams = {};
           let exactTotal = 0;
 
-          activeMrfStreams.forEach((stream, idx) => {
+          activeStreams.forEach((stream, idx) => {
             let val = Number((dailyTotal * dynamicNorm[idx]).toFixed(3));
             rowStreams[stream.id] = val;
             exactTotal += val;
@@ -313,7 +323,7 @@ export default function App() {
       monthlyDataMap[m] = logs;
     });
 
-    setGeneratedConfig({ type: facilityType, streams: activeMrfStreams });
+    setGeneratedConfig({ type: facilityType, streams: activeStreams });
     setGeneratedMonthlyData(monthlyDataMap);
     setActiveTabMonth(selectedMonths[0]);
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -341,19 +351,13 @@ export default function App() {
       const res = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          amount: pricing.total, 
-          customerName: name,
-          customerPhone: phone 
-        })
+        body: JSON.stringify({ amount: pricing.total, customerName: name, customerPhone: phone })
       });
 
       const order = await res.json();
       if (!order.payment_session_id) throw new Error(order.message || 'Failed to initialize payment session.');
 
-      const cashfree = window.Cashfree({
-        mode: import.meta.env.VITE_CASHFREE_MODE || 'production'
-      });
+      const cashfree = window.Cashfree({ mode: import.meta.env.VITE_CASHFREE_MODE || 'production' });
 
       cashfree.checkout({
         paymentSessionId: order.payment_session_id,
@@ -417,7 +421,7 @@ export default function App() {
       if (generatedConfig.type === 'ULB') {
         headers = ["Date", "Day", `Wet (${u})`, `Dry (${u})`, `Sanitary (${u})`, `Special Care/Hazardous (${u})`, `C&D (${u})`, `Inerts (${u})`, `Total (${u})`];
       } else {
-        headers = ["Date", "Day", ...generatedConfig.streams.map(s => `${s.label} (${u})`), `Total Dry (${u})`];
+        headers = ["Date", "Day", ...generatedConfig.streams.map(s => `${s.label} (${u})`), `Total Processing (${u})`];
       }
 
       const wb = XLSX.utils.book_new();
@@ -477,10 +481,10 @@ export default function App() {
               </span>
               <h1 style={{ fontSize: '22px', margin: '6px 0 2px 0', fontWeight: '800' }}>
                 <Building2 size={22} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                {lang === 'hi' ? 'यूएलबी एवं एमआरएफ लॉग-बुक जनरेटर' : 'ULB & MRF Waste Logbook Generator'}
+                {lang === 'hi' ? 'यूएलबी, एमआरएफ एवं मिक्स्ड वेस्ट प्लांट लॉग-बुक जनरेटर' : 'ULB, MRF & Mixed Waste Logbook Generator'}
               </h1>
               <p style={{ fontSize: '13px', margin: 0, color: '#a7f3d0' }}>
-                {lang === 'hi' ? '4-स्ट्रीम अपशिष्ट पृथक्कीकरण एवं अखिल भारतीय राज्यवार एडजस्टमेंट टूल || **केवल एजुकेशन व् एस्टीमेशन हेतु ' : 'Automated 4-Stream Logbook Engine with Pan-India State-Wise Calibration || ** Only for Educational and Estimation Purpose'}
+                {lang === 'hi' ? 'ट्रॉमल पृथक्करण, 4-स्ट्रीम अपशिष्ट एवं राज्यवार एडजस्टमेंट टूल || **केवल एजुकेशन व् एस्टीमेशन हेतु' : 'Automated 4-Stream & Trommel Logbook Engine with State-Wise Calibration || ** For Educational & Estimation Purpose'}
               </p>
             </div>
             <button type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#047857', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
@@ -494,9 +498,10 @@ export default function App() {
           <form onSubmit={handleGenerate} style={{ background: '#fff', padding: '16px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '20px' }}>
             
             <div style={{ marginBottom: '14px', display: 'flex', gap: '15px', alignItems: 'center', fontSize: '14px', flexWrap: 'wrap' }}>
-              <strong>{lang === 'hi' ? 'सुविधा प्रकार:' : 'Facility:'}</strong>
-              <label><input type="radio" value="ULB" checked={facilityType === 'ULB'} onChange={() => handleFacilityChange('ULB')} /> ULB</label>
-              <label><input type="radio" value="MRF" checked={facilityType === 'MRF'} onChange={() => handleFacilityChange('MRF')} /> MRF Centre</label>
+              <strong>{lang === 'hi' ? 'सुविधा प्रकार:' : 'Facility Type:'}</strong>
+              <label style={{ cursor: 'pointer' }}><input type="radio" value="ULB" checked={facilityType === 'ULB'} onChange={() => handleFacilityChange('ULB')} /> ULB</label>
+              <label style={{ cursor: 'pointer' }}><input type="radio" value="MRF" checked={facilityType === 'MRF'} onChange={() => handleFacilityChange('MRF')} /> MRF Centre</label>
+              <label style={{ cursor: 'pointer' }}><input type="radio" value="MIXED_PLANT" checked={facilityType === 'MIXED_PLANT'} onChange={() => handleFacilityChange('MIXED_PLANT')} /> Mixed Waste Plant (Trommel)</label>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '14px' }}>
@@ -515,7 +520,7 @@ export default function App() {
               </div>
 
               <div>
-                <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'निकाय / एमआरएफ का नाम' : 'ULB / MRF Name'}</label>
+                <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'संयंत्र / निकाय का नाम' : 'Plant / ULB Name'}</label>
                 <input style={inputStyle} type="text" required value={name} onChange={(e) => setName(e.target.value)} />
               </div>
 
@@ -523,15 +528,7 @@ export default function App() {
                 <label style={{ fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <Phone size={12} /> {lang === 'hi' ? 'मोबाइल नंबर (रसीद के लिए)' : 'Mobile Number (for Receipt)'}
                 </label>
-                <input 
-                  style={inputStyle} 
-                  type="tel" 
-                  maxLength={10} 
-                  placeholder="9876543210" 
-                  required 
-                  value={phone} 
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} 
-                />
+                <input style={inputStyle} type="tel" maxLength={10} placeholder="9876543210" required value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} />
               </div>
 
               {facilityType === 'ULB' ? (
@@ -570,9 +567,6 @@ export default function App() {
                           <input style={{ ...inputStyle, marginTop: '8px' }} type="number" placeholder="g/person/day" required value={customPerCapita} onChange={(e) => setCustomPerCapita(e.target.value)} />
                         )}
                       </div>
-                      <div style={{ gridColumn: '1 / -1', fontSize: '12px', color: '#475569', fontStyle: 'italic' }}>
-                        Select a rate appropriate to local conditions. Where reliable local waste-generation records are available, the Actual / Observed TPD option should be preferred.
-                      </div>
                       <div style={{ gridColumn: '1 / -1', fontSize: '13px', fontWeight: 'bold', color: '#047857' }}>
                         {lang === 'hi' ? 'अनुमानित दैनिक अपशिष्ट:' : 'Estimated Daily Waste:'} {estimatedDailyWaste} TPD
                       </div>
@@ -593,39 +587,41 @@ export default function App() {
               ) : (
                 <>
                   <div>
-                    <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'दैनिक सूखा कचरा आवक (TPD)' : 'Daily Dry Waste Input (TPD)'}</label>
+                    <label style={{ fontSize: '12px', fontWeight: '600' }}>
+                      {facilityType === 'MIXED_PLANT' ? (lang === 'hi' ? 'दैनिक मिश्रित कचरा आवक (TPD)' : 'Daily Mixed Waste Intake (TPD)') : (lang === 'hi' ? 'दैनिक सूखा कचरा आवक (TPD)' : 'Daily Dry Waste Input (TPD)')}
+                    </label>
                     <input style={inputStyle} type="number" step="0.01" required value={mrfDailyDryTons} onChange={(e) => setMrfDailyDryTons(e.target.value)} />
                   </div>
                   <div>
-                    <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'एमआरएफ क्षमता (TPD)' : 'MRF Capacity (TPD)'}</label>
+                    <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'संयंत्र क्षमता (TPD)' : 'Plant Capacity (TPD)'}</label>
                     <input style={inputStyle} type="number" step="0.01" required value={mrfMaxCapacityTons} onChange={(e) => setMrfMaxCapacityTons(e.target.value)} />
                   </div>
                   <div style={{ gridColumn: '1 / -1', fontSize: '13px', fontWeight: 'bold', display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
                     {lang === 'hi' ? 'क्षमता उपयोग (Capacity Utilization):' : 'Capacity Utilization:'} {mrfCapacityUtilization.toFixed(1)}%
                     {mrfCapacityUtilization > 100 && (
-                      <span style={{ color: '#dc2626', marginLeft: '6px', fontSize: '12px' }}>(Warning: Daily input exceeds MRF design capacity.)</span>
+                      <span style={{ color: '#dc2626', marginLeft: '6px', fontSize: '12px' }}>(Warning: Daily intake exceeds plant design capacity.)</span>
                     )}
                   </div>
                   
-                  {/* MRF ADVANCED MODE TOGGLE */}
+                  {/* ADVANCED CONFIGURATION TOGGLE */}
                   <div style={{ gridColumn: '1 / -1', marginTop: '10px', background: isAdvancedMode ? '#fffbeb' : '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#0f172a', cursor: 'pointer', fontSize: '13px' }}>
                       <input type="checkbox" checked={isAdvancedMode} onChange={(e) => setIsAdvancedMode(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
                       {lang === 'hi' 
-                        ? '!! ADVANCE Log-Book !! एडवांस्ड एमआरएफ कॉन्फ़िगरेशन सक्षम करें (कस्टम स्ट्रीम और एडजस्टमेंट) — मूल दर: ₹150/माह' 
-                        : 'Enable Advanced MRF Configuration (Custom Streams & Adjustments) — Base Rate: ₹150/mo'}
+                        ? `!! ADVANCE Log-Book !! एडवांस्ड ${facilityType === 'MIXED_PLANT' ? 'मिक्स्ड वेस्ट ट्रॉमल (₹200/माह)' : 'एमआरएफ (₹150/माह)'} कॉन्फ़िगरेशन सक्षम करें` 
+                        : `Enable Advanced ${facilityType === 'MIXED_PLANT' ? 'Mixed Waste Trommel (₹200/mo)' : 'MRF (₹150/mo)'} Configuration`}
                     </label>
 
                     {isAdvancedMode && (
                       <div style={{ marginTop: '14px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
                         <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 10px 0' }}>
-                          {lang === 'hi' 
-                            ? 'विशिष्ट पृथक्कृत स्ट्रीम चुनें और वास्तविक आवक स्थिति (अनौपचारिक बीनने वालों द्वारा निकाले गए कचरे को ध्यान में रखते हुए) को दर्शाने वाले सांकेतिक प्रतिशत दर्ज करें।' 
-                            : 'Select specific sorted streams and input indicative composition percentages representing the real arrival state (accounting for informal skimming).'}
+                          {facilityType === 'MIXED_PLANT'
+                            ? (lang === 'hi' ? 'ट्रॉमल कट-ऑफ (जैसे <80mm फ़ाइन्स, >80mm RDF) के आधार पर पृथक्करण दर सेट करें।' : 'Set mass-balance splits based on mechanical trommel screen sizes (<80mm fines, >80mm RDF, etc.).')
+                            : (lang === 'hi' ? 'विशिष्ट पृथक्कृत स्ट्रीम चुनें और सांकेतिक प्रतिशत दर्ज करें।' : 'Select sorted dry streams and input composition percentages.')}
                         </p>
                         
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '10px' }}>
-                          {mrfStreamsConfig.map(stream => (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
+                          {currentStreamConfig.map(stream => (
                             <div key={stream.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', opacity: stream.active ? 1 : 0.6 }}>
                               <input type="checkbox" checked={stream.active} onChange={(e) => updateStreamConfig(stream.id, 'active', e.target.checked)} style={{ cursor: 'pointer' }} />
                               <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
@@ -639,20 +635,20 @@ export default function App() {
                           ))}
                         </div>
 
-                        {/* STRICT 100% VALIDATION COUNTER */}
+                        {/* MASS BALANCE 100% VALIDATION COUNTER */}
                         <div style={{ 
                           display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
                           marginTop: '15px', padding: '10px 15px', borderRadius: '6px', 
-                          background: isValidMrfTotal ? '#dcfce7' : '#fee2e2', 
-                          border: isValidMrfTotal ? '1px solid #22c55e' : '1px solid #ef4444' 
+                          background: isValidTotal ? '#dcfce7' : '#fee2e2', 
+                          border: isValidTotal ? '1px solid #22c55e' : '1px solid #ef4444' 
                         }}>
-                           <span style={{ fontWeight: 'bold', color: isValidMrfTotal ? '#166534' : '#991b1b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              {!isValidMrfTotal && <AlertCircle size={16} />} 
-                              {lang === 'hi' ? 'कुल संरचना:' : 'Total Composition:'} {totalMrfPercentage}%
+                           <span style={{ fontWeight: 'bold', color: isValidTotal ? '#166534' : '#991b1b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              {!isValidTotal && <AlertCircle size={16} />} 
+                              {lang === 'hi' ? 'कुल द्रव्यमान संतुलन:' : 'Total Mass Balance:'} {totalPercentage}%
                            </span>
-                           {!isValidMrfTotal && (
+                           {!isValidTotal && (
                              <span style={{ fontSize: '12px', color: '#991b1b', fontWeight: 'bold' }}>
-                               {lang === 'hi' ? 'आगे बढ़ने के लिए कुल योग सटीक 100% होना चाहिए।' : 'Total must equal exactly 100% to proceed.'}
+                               {lang === 'hi' ? 'आगे बढ़ने के लिए कुल योग सटीक 100% होना चाहिए।' : 'Total mass balance must equal exactly 100% to proceed.'}
                              </span>
                            )}
                         </div>
@@ -715,7 +711,7 @@ export default function App() {
             </div>
 
             <button type="submit" disabled={generateDisabled} style={{ width: '100%', padding: '12px', background: generateDisabled ? '#94a3b8' : '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: generateDisabled ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
-              {generateDisabled ? 'Please fix total percentage to exactly 100%' : (lang === 'hi' ? 'लॉग-बुक जनरेट करें →' : 'Generate Dataset →')}
+              {generateDisabled ? 'Please fix total mass balance to exactly 100%' : (lang === 'hi' ? 'लॉग-बुक जनरेट करें →' : 'Generate Dataset →')}
             </button>
           </form>
 
@@ -724,7 +720,7 @@ export default function App() {
               
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '10px', borderRadius: '6px', marginBottom: '12px', fontSize: '12px', color: '#1e40af' }}>
                 <strong><Info size={14} style={{ verticalAlign: 'middle' }} /> Indicative regional modelling assumptions ({currentStateObj.nameEn} / {currentRegionObj.nameEn}):</strong> 
-                {generatedConfig.type === 'ULB' ? ' 4-Stream segregation applied.' : (isAdvancedMode ? ' Advanced custom MRF fractions mapped successfully.' : ' Standard 6-stream MRF composition applied.')}
+                {generatedConfig.type === 'ULB' ? ' 4-Stream segregation applied.' : (generatedConfig.type === 'MIXED_PLANT' ? ' Mechanical trommel split models applied.' : ' Standard MRF stream composition applied.')}
               </div>
 
               <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '12px', overflowX: 'auto' }}>
@@ -796,8 +792,8 @@ export default function App() {
                         </>
                       ) : (
                         <>
-                          {generatedConfig.streams.map(s => <th key={s.id}>{s.label}</th>)}
-                          <th>Total Dry</th>
+                          {generatedConfig.streams.map(s => <th key={s.id}>{s.label} ({displayUnit})</th>)}
+                          <th>Total Intake ({displayUnit})</th>
                         </>
                       )}
                     </tr>
@@ -883,7 +879,7 @@ export default function App() {
                 <p><strong>Entity Name:</strong> Consilience Research Foundation (CRF)</p>
                 <p><strong>Email:</strong> crginfomail@gmail.com</p>
                 <p><strong>Address:</strong> Lucknow, Uttar Pradesh, India </p>
-                <p><strong>Service Pricing:</strong> ₹100/mo (Standard) or ₹150/mo (Advanced), with Volume Pricing available.</p>
+                <p><strong>Service Pricing:</strong> ₹100/mo (Standard), ₹150/mo (Advanced MRF), or ₹200/mo (Mixed Waste Plant), with Volume Pricing available.</p>
               </div>
             )}
             {activePolicy === 'terms' && (
