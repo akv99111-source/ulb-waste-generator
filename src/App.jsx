@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck, MapPin, AlertCircle, Phone, Plus, Trash2, ArrowLeft, Layers, Sparkles } from 'lucide-react';
+import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck, MapPin, AlertCircle, Phone, Plus, Trash2, ArrowLeft, Layers, Sparkles, BookOpen } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const MONTHS = [
@@ -77,9 +77,9 @@ const DEFAULT_MRF_STREAMS = [
 ];
 
 const DEFAULT_MIXED_STREAMS = [
-  { id: 'fine_screen_undersize', label: 'Fine Screen Fraction (Organics/Undersize)', defaultWeight: 45, min: 10, max: 80, isDefault: true },
-  { id: 'coarse_screen_oversize', label: 'Coarse Screen Fraction (RDF/Oversize)', defaultWeight: 25, min: 5, max: 60, isDefault: true },
-  { id: 'recovered_recyclables', label: 'Sorted Recyclables (Plastics/Metals)', defaultWeight: 10, min: 1, max: 30, isDefault: true },
+  { id: 'fine_screen_undersize', label: 'Fine Screen Fraction (Organics)', defaultWeight: 45, min: 10, max: 80, isDefault: true },
+  { id: 'coarse_screen_oversize', label: 'Coarse Screen Fraction (RDF)', defaultWeight: 25, min: 5, max: 60, isDefault: true },
+  { id: 'recovered_recyclables', label: 'Sorted Recyclables', defaultWeight: 10, min: 1, max: 30, isDefault: true },
   { id: 'inerts_stones', label: 'Inerts, Silt & Stones', defaultWeight: 12, min: 2, max: 40, isDefault: true },
   { id: 'process_rejects', label: 'Process / Landfill Rejects', defaultWeight: 8, min: 1, max: 30, isDefault: true },
   { id: 'other_mixed_fraction', label: 'Other/Custom Fraction', defaultWeight: 0, min: 0, max: 50, isDefault: false },
@@ -94,23 +94,12 @@ const getSeasonalFractionsULB = (m, regionKey) => {
 
 const cyrb128 = (str) => {
   let h1 = 1779033703, h2 = 3144134277, h3 = 1013904242, h4 = 2773480762;
-  for (let i = 0; i < str.length; i++) {
-    let k = str.charCodeAt(i);
-    h1 = h2 ^ Math.imul(h1 ^ k, 597399067);
-    h2 = h3 ^ Math.imul(h2 ^ k, 2869860233);
-    h3 = h4 ^ Math.imul(h3 ^ k, 951274213);
-    h4 = h1 ^ Math.imul(h4 ^ k, 2716044179);
-  }
+  for (let i = 0; i < str.length; i++) { let k = str.charCodeAt(i); h1 = h2 ^ Math.imul(h1 ^ k, 597399067); h2 = h3 ^ Math.imul(h2 ^ k, 2869860233); h3 = h4 ^ Math.imul(h3 ^ k, 951274213); h4 = h1 ^ Math.imul(h4 ^ k, 2716044179); }
   return (Math.imul(h3 ^ (h1 >>> 18), 597399067) ^ Math.imul(h4 ^ (h2 >>> 22), 2869860233) ^ Math.imul(h1 ^ (h3 >>> 17), 951274213) ^ Math.imul(h2 ^ (h4 >>> 19), 2716044179)) >>> 0;
 };
 
 const mulberry32 = (a) => {
-  return function() {
-    var t = a += 0x6D2B79F5;
-    t = Math.imul(t ^ t >>> 15, t | 1);
-    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  }
+  return function() { var t = a += 0x6D2B79F5; t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61); return ((t ^ t >>> 14) >>> 0) / 4294967296; }
 };
 
 const inputStyle = { width: '100%', padding: '9px', borderRadius: '6px', border: '1px solid #cbd5e1', marginTop: '4px', boxSizing: 'border-box' };
@@ -124,16 +113,13 @@ export default function App() {
   const [phone, setPhone] = useState('');
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   
-  // Standalone ULB & Integrated State
   const [ulbCalculationMode, setUlbCalculationMode] = useState('population');
   const [population, setPopulation] = useState(50000);
   const [perCapitaOption, setPerCapitaOption] = useState('450');
   const [customPerCapita, setCustomPerCapita] = useState('');
   const [actualAverageTpd, setActualAverageTpd] = useState(10);
-  const [referencePeriod, setReferencePeriod] = useState(30);
   const [segregationRate, setSegregationRate] = useState(80);
 
-  // Standalone MRF & Mixed Plant State
   const [mrfDailyDryTons, setMrfDailyDryTons] = useState(15);
   const [mrfMaxCapacityTons, setMrfMaxCapacityTons] = useState(25);
   const [mrfStreamsConfig, setMrfStreamsConfig] = useState(
@@ -143,7 +129,6 @@ export default function App() {
     DEFAULT_MIXED_STREAMS.map(s => ({ ...s, active: s.isDefault, userWeight: s.defaultWeight }))
   );
 
-  // Dynamic Assets for Integrated 3-in-1 Mode
   const [compostUnits, setCompostUnits] = useState([
     { id: 'c1', label: 'Windrow Pad Alpha', type: 'Windrow Pad', capacity: 10 }
   ]);
@@ -167,38 +152,36 @@ export default function App() {
 
   const parsedPerCapita = perCapitaOption === 'custom' ? Number(customPerCapita) : Number(perCapitaOption);
   const estimatedDailyWaste = ((Number(population) * parsedPerCapita) / 1000000).toFixed(2);
-  const mrfCapacityUtilization = Number(mrfMaxCapacityTons) > 0 ? (Number(mrfDailyDryTons) / Number(mrfMaxCapacityTons)) * 100 : 0;
-
+  
   const currentStreamConfig = facilityType === 'MIXED_PLANT' ? mixedStreamsConfig : mrfStreamsConfig;
   const activeStreams = isAdvancedMode ? currentStreamConfig.filter(s => s.active) : currentStreamConfig.filter(s => s.isDefault);
   const totalPercentage = activeStreams.reduce((acc, s) => acc + Number(s.userWeight || 0), 0);
   const isValidTotal = totalPercentage === 100;
   const generateDisabled = appMode === 'STANDALONE' && (facilityType === 'MRF' || facilityType === 'MIXED_PLANT') && isAdvancedMode && !isValidTotal;
 
-  const addCompostUnit = () => {
-    const newId = `c${compostUnits.length + 1}`;
-    setCompostUnits([...compostUnits, { id: newId, label: lang === 'hi' ? `कम्पोस्ट यूनिट ${compostUnits.length + 1}` : `Compost Unit ${compostUnits.length + 1}`, type: 'Vermicompost Pit', capacity: 5 }]);
+  // Session Management
+  const getSessionKey = () => {
+    const cleanName = name.trim().toLowerCase().replace(/\s+/g, '_');
+    return `crf_paid_${appMode}_${facilityType}_${cleanName}_${selectedMonths.length}M`;
   };
 
-  const removeCompostUnit = (id) => {
-    if (compostUnits.length > 1) setCompostUnits(compostUnits.filter(u => u.id !== id));
-  };
+  useEffect(() => {
+    const rawData = localStorage.getItem(getSessionKey());
+    if (rawData) {
+      try {
+        const parsed = JSON.parse(rawData);
+        if (parsed.paid && (Date.now() - parsed.timestamp < 12 * 60 * 60 * 1000)) {
+          setIsPaid(true); return;
+        }
+      } catch (e) {
+        if (rawData === 'true') { setIsPaid(true); return; }
+      }
+    }
+    setIsPaid(false);
+  }, [name, appMode, facilityType, selectedMonths.length]);
 
-  const updateCompostUnit = (id, field, value) => {
-    setCompostUnits(compostUnits.map(u => u.id === id ? { ...u, [field]: value } : u));
-  };
-
-  const addMrfUnit = () => {
-    const newId = `m${mrfUnits.length + 1}`;
-    setMrfUnits([...mrfUnits, { id: newId, label: lang === 'hi' ? `एमआरएफ शेड ${mrfUnits.length + 1}` : `MRF Shed ${mrfUnits.length + 1}`, type: 'Manual Sorting Shed', capacity: 5 }]);
-  };
-
-  const removeMrfUnit = (id) => {
-    if (mrfUnits.length > 1) setMrfUnits(mrfUnits.filter(u => u.id !== id));
-  };
-
-  const updateMrfUnit = (id, field, value) => {
-    setMrfUnits(mrfUnits.map(u => u.id === id ? { ...u, [field]: value } : u));
+  const markSessionPaid = () => {
+    localStorage.setItem(getSessionKey(), JSON.stringify({ paid: true, timestamp: Date.now() }));
   };
 
   const toggleMonth = (mId) => {
@@ -215,13 +198,9 @@ export default function App() {
     const billableMonths = count - freeMonths;
     
     let baseRate = 100;
-    if (appMode === 'INTEGRATED_3IN1') {
-      baseRate = 500;
-    } else if (facilityType === 'MIXED_PLANT') {
-      baseRate = 200;
-    } else if (isAdvancedMode) {
-      baseRate = 150;
-    }
+    if (appMode === 'INTEGRATED_3IN1') baseRate = 500;
+    else if (facilityType === 'MIXED_PLANT') baseRate = 200;
+    else if (isAdvancedMode) baseRate = 150;
     
     const baseTotal = billableMonths * baseRate;
     const effectiveFeeRate = 0.0236; 
@@ -232,24 +211,6 @@ export default function App() {
   };
 
   const pricing = getPricingDetails();
-
-  const updateStreamConfig = (id, field, value) => {
-    const setConfig = facilityType === 'MIXED_PLANT' ? setMixedStreamsConfig : setMrfStreamsConfig;
-    setConfig(prev => prev.map(s => {
-      if (s.id === id) {
-        if (field === 'userWeight') {
-          let num = value === '' ? '' : Number(value);
-          if (num !== '') {
-            if (num < s.min) num = s.min;
-            if (num > s.max) num = s.max;
-          }
-          return { ...s, [field]: num };
-        }
-        return { ...s, [field]: value };
-      }
-      return s;
-    }));
-  };
 
   const handleGenerate = (e) => {
     e.preventDefault();
@@ -297,10 +258,7 @@ export default function App() {
           let compostUnitBreakdown = {};
           compostUnits.forEach(unit => {
             const unitShare = (Number(unit.capacity || 1) / totalCompostCapacity) * totalCompostFeed;
-            compostUnitBreakdown[unit.id] = {
-              feed: Number(unitShare.toFixed(3)),
-              compostYield: Number((unitShare * 0.18).toFixed(3))
-            };
+            compostUnitBreakdown[unit.id] = { feed: Number(unitShare.toFixed(3)), compostYield: Number((unitShare * 0.18).toFixed(3)) };
           });
 
           const totalMrfFeed = drySeg + dryOversize;
@@ -308,19 +266,14 @@ export default function App() {
           let mrfUnitBreakdown = {};
           mrfUnits.forEach(unit => {
             const unitShare = (Number(unit.capacity || 1) / totalMrfCapacity) * totalMrfFeed;
-            mrfUnitBreakdown[unit.id] = {
-              feed: Number(unitShare.toFixed(3)),
-              recyclables: Number((unitShare * 0.65).toFixed(3)),
-              rdf: Number((unitShare * 0.25).toFixed(3))
-            };
+            mrfUnitBreakdown[unit.id] = { feed: Number(unitShare.toFixed(3)), recyclables: Number((unitShare * 0.65).toFixed(3)), rdf: Number((unitShare * 0.25).toFixed(3)) };
           });
 
           logs.push({
             date: dateStr, dayName, totalIntake: Number(dailyTotal.toFixed(3)),
             wetSeg, drySeg, hazSeg, sanSeg, unsegregatedMixed,
             organicFines, dryOversize, heavyInerts,
-            totalCompostFeed: Number(totalCompostFeed.toFixed(3)),
-            totalMrfFeed: Number(totalMrfFeed.toFixed(3)),
+            totalCompostFeed: Number(totalCompostFeed.toFixed(3)), totalMrfFeed: Number(totalMrfFeed.toFixed(3)),
             compostUnitBreakdown, mrfUnitBreakdown
           });
         } else if (facilityType === 'ULB') {
@@ -348,8 +301,7 @@ export default function App() {
 
           activeStreams.forEach((stream, idx) => {
             let val = Number((dailyTotal * dynamicNorm[idx]).toFixed(3));
-            rowStreams[stream.id] = val;
-            exactTotal += val;
+            rowStreams[stream.id] = val; exactTotal += val;
           });
 
           logs.push({ date: dateStr, dayName, streams: rowStreams, total: Number(exactTotal.toFixed(3)) });
@@ -362,6 +314,56 @@ export default function App() {
     setGeneratedMonthlyData(monthlyDataMap);
     setActiveTabMonth(selectedMonths[0]);
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  };
+
+  // RESTORED CASHFREE PAYMENT HANDLER
+  const handlePayment = async () => {
+    if (!phone || phone.length < 10) {
+      alert(lang === 'hi' ? 'कृपया एक वैध 10-अंकों का मोबाइल नंबर दर्ज करें।' : 'Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    setIsProcessing(true);
+
+    if (!window.Cashfree) {
+      await new Promise((res) => {
+        if (document.querySelector('script[src*="cashfree.com"]')) return res(true);
+        const s = document.createElement('script');
+        s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
+        s.onload = () => res(true);
+        document.body.appendChild(s);
+      });
+    }
+
+    try {
+      const res = await fetch('/api/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: pricing.total, customerName: name, customerPhone: phone })
+      });
+
+      const order = await res.json();
+      if (!order.payment_session_id) throw new Error(order.message || 'Failed to initialize payment session.');
+
+      const cashfree = window.Cashfree({ mode: import.meta.env.VITE_CASHFREE_MODE || 'production' });
+
+      cashfree.checkout({
+        paymentSessionId: order.payment_session_id,
+        redirectTarget: '_modal'
+      }).then((result) => {
+        if (result.error) {
+          alert('Payment Failed: ' + result.error.message);
+          setIsProcessing(false);
+        } else if (result.paymentDetails) {
+          setIsPaid(true);
+          setIsProcessing(false);
+          markSessionPaid();
+          downloadMultiSheetExcel();
+        }
+      });
+    } catch (err) {
+      alert('Payment Error: ' + err.message);
+      setIsProcessing(false);
+    }
   };
 
   const formatVal = (v) => displayUnit === 'kg' ? Math.round(v * 1000) : Number(v || 0).toFixed(3);
@@ -396,7 +398,7 @@ export default function App() {
         });
       } else {
         let headers = facilityType === 'ULB' 
-          ? ["Date", "Day", `Wet (${u})`, `Dry (${u})`, `Sanitary (${u})`, `Special Care (${u})`, `C&D (${u})`, `Inerts (${u})`, `Total (${u})`]
+          ? ["Date", "Day", `Wet (${u})`, `Dry (${u})`, `Sanitary (${u})`, `Hazardous (${u})`, `C&D (${u})`, `Inerts (${u})`, `Total (${u})`]
           : ["Date", "Day", ...generatedConfig.streams.map(s => `${s.label} (${u})`), `Total (${u})`];
 
         const sheetData = [headers, ...generatedMonthlyData[mId].map(r => {
@@ -417,7 +419,7 @@ export default function App() {
   };
 
   const activeRows = generatedMonthlyData?.[activeTabMonth] || [];
-  const visibleRows = isPaid ? activeRows : activeRows.slice(0, 5);
+  const visibleRows = isPaid ? activeRows : activeRows.slice(0, 5); // Restricts view to 5 rows if not paid
 
   return (
     <div style={{ fontFamily: 'sans-serif', background: '#f8fafc', minHeight: '100vh', padding: '15px' }}>
@@ -440,6 +442,21 @@ export default function App() {
             <button type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#047857', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>
               <Globe size={15} style={{ verticalAlign: 'middle' }} /> {lang === 'hi' ? 'English' : 'हिंदी'}
             </button>
+          </div>
+        </div>
+
+        {/* RESTORED: SIMPLE HELP TEXT BOX */}
+        <div style={{ background: '#f0f9ff', border: '1px solid #7dd3fc', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+          <BookOpen style={{ color: '#0284c7', marginTop: '2px' }} size={20} />
+          <div>
+            <strong style={{ color: '#0369a1', fontSize: '14px', display: 'block', marginBottom: '4px' }}>
+              {lang === 'hi' ? 'इस टूल का उपयोग कैसे करें?' : 'How to use this tool?'}
+            </strong>
+            <p style={{ margin: 0, fontSize: '13px', color: '#0c4a6e', lineHeight: '1.5' }}>
+              {lang === 'hi' 
+                ? '1. अपने प्लांट का प्रकार चुनें। 2. शहर का नाम और कचरे की क्षमता दर्ज करें। 3. आवश्यक महीने चुनें। 4. डेटा जेनरेट करें और एक्सेल फाइल डाउनलोड करने के लिए सुरक्षित भुगतान करें।' 
+                : '1. Select your facility type. 2. Enter your city details and waste capacity. 3. Select the months you need data for. 4. Generate and pay to download your complete Excel files.'}
+            </p>
           </div>
         </div>
 
@@ -472,7 +489,6 @@ export default function App() {
         {/* FORM SECTION */}
         <form onSubmit={handleGenerate} style={{ background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '20px' }}>
           
-          {/* FACILITY SELECTION FOR STANDALONE MODE */}
           {appMode === 'STANDALONE' && (
             <div style={{ marginBottom: '14px', display: 'flex', gap: '15px', alignItems: 'center', fontSize: '14px', flexWrap: 'wrap', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
               <strong>{lang === 'hi' ? 'सिंगल-फैसिलिटी चुनें:' : 'Select Standalone Logbook:'}</strong>
@@ -546,7 +562,6 @@ export default function App() {
             )}
           </div>
 
-          {/* INTEGRATED MODE SPECIFIC MULTI-ASSET INPUTS */}
           {appMode === 'INTEGRATED_3IN1' && (
             <>
               <div style={{ background: '#ecfdf5', padding: '12px', borderRadius: '6px', border: '1px solid #a7f3d0', marginBottom: '14px' }}>
@@ -598,7 +613,6 @@ export default function App() {
             </>
           )}
 
-          {/* ADVANCED CUSTOM FRACTIONS TOGGLE FOR STANDALONE MRF/MIXED */}
           {appMode === 'STANDALONE' && (facilityType === 'MRF' || facilityType === 'MIXED_PLANT') && (
             <div style={{ marginTop: '10px', background: isAdvancedMode ? '#fffbeb' : '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginBottom: '14px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}>
@@ -623,10 +637,15 @@ export default function App() {
             </div>
           )}
 
-          {/* MONTH SELECTION */}
+          {/* MONTH SELECTION WITH RESTORED "FREE MONTH" TEXT */}
           <div style={{ marginBottom: '14px' }}>
-            <strong style={{ fontSize: '13px' }}>
+            <strong style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '10px' }}>
               {lang === 'hi' ? `महीने चुनें (${pricing.count} चयनित — ₹${pricing.total}):` : `Select Months (${pricing.count} Selected — ₹${pricing.total}):`}
+              {pricing.freeMonths > 0 && (
+                <span style={{ color: '#dc2626', fontSize: '11px', background: '#fee2e2', padding: '3px 8px', borderRadius: '12px' }}>
+                  {lang === 'hi' ? `🎉 ${pricing.freeMonths} महीना मुफ़्त!` : `🎉 ${pricing.freeMonths} Month Free!`}
+                </span>
+              )}
             </strong>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '6px', marginTop: '6px' }}>
               {MONTHS.map((m) => {
@@ -647,7 +666,7 @@ export default function App() {
           </button>
         </form>
 
-        {/* RESULTS PREVIEW */}
+        {/* RESULTS PREVIEW WITH RESTORED ANTI-COPY & LOCK BOX */}
         {generatedMonthlyData && (
           <div ref={resultsRef} style={{ background: '#fff', padding: '15px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
@@ -656,19 +675,16 @@ export default function App() {
                 <button onClick={() => setDisplayUnit(displayUnit === 'Tons' ? 'kg' : 'Tons')} style={{ padding: '6px 10px', fontSize: '12px', borderRadius: '4px', border: '1px solid #cbd5e1' }}>
                   {lang === 'hi' ? 'यूनिट:' : 'Unit:'} <strong>{displayUnit}</strong>
                 </button>
-                {isPaid ? (
+                {isPaid && (
                   <button onClick={downloadMultiSheetExcel} style={{ padding: '6px 12px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
                     <Download size={13} /> Export Excel (.xlsx)
-                  </button>
-                ) : (
-                  <button onClick={() => setIsPaid(true)} style={{ padding: '6px 12px', background: '#059669', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                    {lang === 'hi' ? `₹${pricing.total} का भुगतान करें` : `Pay ₹${pricing.total} to Unlock`}
                   </button>
                 )}
               </div>
             </div>
 
-            <div style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px' }}>
+            {/* RESTORED ONCONTEXTMENU (NO RIGHT CLICK) & USERSELECT NONE */}
+            <div onContextMenu={(e) => !isPaid && e.preventDefault()} style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px', userSelect: isPaid ? 'text' : 'none' }}>
               <table cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '600px' }}>
                 <thead>
                   <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
@@ -728,6 +744,26 @@ export default function App() {
                 </tbody>
               </table>
             </div>
+
+            {/* RESTORED LOCK OVERLAY FOR UNPAID USERS */}
+            {!isPaid && (
+              <div style={{ border: '2px dashed #059669', background: '#ecfdf5', padding: '15px', textAlign: 'center', marginTop: '12px', borderRadius: '6px' }}>
+                <Lock style={{ color: '#059669' }} size={18} />
+                <h4 style={{ margin: '4px 0', color: '#065f46', fontSize: '15px' }}>
+                  {lang === 'hi' ? 'प्रीव्यू लॉक है (केवल 1-5 दिन दिख रहे हैं)' : 'Preview Locked (Days 1–5 Only)'}
+                </h4>
+                <p style={{ margin: '4px 0 10px 0', color: '#047857', fontSize: '13px' }}>
+                  {lang === 'hi' 
+                    ? `पूरी एक्सेल फाइल डाउनलोड करने के लिए ₹${pricing.total} का सुरक्षित भुगतान करें।` 
+                    : `Pay ₹${pricing.total} to unlock and download your complete Master Excel workbook.`}
+                </p>
+                <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 20px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  {isProcessing 
+                    ? (lang === 'hi' ? 'प्रक्रिया जारी है...' : 'Connecting...') 
+                    : (lang === 'hi' ? `₹${pricing.total} भुगतान करें और फाइल डाउनलोड करें` : `Pay ₹${pricing.total} & Download File`)}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
