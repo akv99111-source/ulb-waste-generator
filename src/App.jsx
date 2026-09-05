@@ -370,7 +370,109 @@ export default function App() {
     <Layers size={14} /> {lang === 'hi' ? '3-इन-1 ऐप पर जाएँ' : 'Open 3-in-1 Suite'}
   </a>
 </div>
+{/* CROSS-LINK BANNER */}
+        <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h3 style={{ margin: 0, color: '#334155', fontSize: '14px' }}>{lang === 'hi' ? 'सिंगल-फैसिलिटी लॉग-बुक चाहिए?' : 'Need Single-Facility Logbooks?'}</h3>
+            <p style={{ margin: 0, color: '#64748b', fontSize: '12px' }}>{lang === 'hi' ? 'केवल ₹100/माह में साधारण ULB/MRF जनरेटर खोलें।' : 'Use our standalone ULB, MRF, or Mixed waste tool starting at ₹100/mo.'}</p>
+          </div>
+          <a href="https://ulb-waste-generator.vercel.app/" style={{ textDecoration: 'none', padding: '8px 14px', background: '#334155', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <ArrowLeft size={14} /> Open Standalone App
+          </a>
+        </div>
 
+        {/* ======================================================== */}
+        {/* PASTE THE BILINGUAL USER GUIDE BLOCK RIGHT HERE (BELOW)  */}
+        {/* ======================================================== */}
+        <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px' }}>
+            <h3 style={{ margin: 0, color: '#0369a1', fontSize: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <BookOpen size={18} /> {lang === 'hi' ? 'लॉग-बुक जनरेटर उपयोग निर्देशिका (User Guide)' : 'User Guide & Operator Instructions'}
+            </h3>
+            <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+              {lang === 'hi' ? 'सहायता गाइड' : 'Help Manual'}
+            </span>
+          </div>
+
+          {lang === 'hi' ? (
+            <div style={{ fontSize: '13px', color: '#0c4a6e', lineHeight: '1.6' }}>
+              <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', color: '#0284c7' }}>
+                इस टूल का उपयोग करके 30-दिवसीय ऑडिट-रेडी SWM एक्सेल लॉग-बुक कैसे बनाएं:
+              </p>
+              <ol style={{ margin: 0, paddingLeft: '20px' }}>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>बुनियादी विवरण दर्ज करें (Basic Details):</strong> अपने राज्य का चयन करें, अपनी निकाय/प्लांट (ULB / Facility Name) का नाम लिखें और 10-अंकों का मोबाइल नंबर दर्ज करें।
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>कचरा क्षमता मोड चुनें (Waste Intake Mode):</strong> 
+                  <ul style={{ paddingLeft: '16px', margin: '2px 0' }}>
+                    <li><em>जनसंख्या आधारित (Population Based):</em> यदि आपके पास तौल-कांटा (Weighbridge) नहीं है, तो जनसंख्या से प्रति-व्यक्ति मानक कचरा जनरेशन (जैसे 450 ग्राम/दिन) ऑटोमैटिक कैलकुलेट करें।</li>
+                    <li><em>वास्तविक TPD (Actual TPD):</em> यदि आपके पास प्लांट गेट पर वास्तविक तौल का आंकड़ा है, तो दैनिक औसत TPD दर्ज करें।</li>
+                  </ul>
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>स्रोत पृथक्करण दर (Source Segregation Rate %):</strong> डोर-टू-डोर कलेक्शन से आने वाले पृथक्कृत गीले/सूखे कचरे की दर सेट करें। उच्च प्रतिशत से सीधा गीला कचरा कम्पोस्ट पिट और सूखा कचरा MRF शेड में जाता है।
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>प्लांट यूनिट्स और क्षमता जोड़ें (Asset Configuration):</strong> 
+                  <ul style={{ paddingLeft: '16px', margin: '2px 0' }}>
+                    <li><em>कम्पोस्ट यूनिट्स (Compost Lines):</em> अपने एक्टिव विंडरो पैड या वर्मी-कम्पोस्ट पिट्स और उनकी दैनिक क्षमता (TPD) जोड़ें।</li>
+                    <li><em>MRF शेड्स (Dry Lines):</em> अपने मैनुअल सॉर्टिंग शेड या सेमी-ऑटोमेटेड लाइन्स जोड़ें।</li>
+                    <li><em>मिक्स वेस्ट प्लांट (Pre-Sorting Plant):</em> अगर आपके प्लांट में मिश्रित कचरे से फाइन ऑर्गेनिक्स और RDF छंटाई के लिए ट्रॉमेल (Trommel) स्क्रीन लगी है, तो इसे चालू करें।</li>
+                  </ul>
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>महीने चुनें (Month Selection):</strong> जितने महीनों की लॉग-बुक चाहिए उन महीनों के बटन पर क्लिक करें (हर 6ठा महीना बिल्कुल मुफ्त है)।
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>मास-बैलेंस डेटासेट जनरेट करें (Preview & Download):</strong> 
+                  <strong>"Generate Master Dataset"</strong> पर क्लिक करें। पहले 5 दिनों का लाइव पूर्वावलोकन (Preview) देखें, फिर सुरक्षित भुगतान पूरा करके पूरे महीने की बिना किसी कट-छंट वाली Excel Workbook (.xlsx) डाउनलोड करें।
+                </li>
+              </ol>
+            </div>
+          ) : (
+            <div style={{ fontSize: '13px', color: '#0c4a6e', lineHeight: '1.6' }}>
+              <p style={{ margin: '0 0 8px 0', fontWeight: 'bold', color: '#0284c7' }}>
+                How to generate your 30-day audit-ready SWM Excel logbooks step-by-step:
+              </p>
+              <ol style={{ margin: 0, paddingLeft: '20px' }}>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>Enter Basic Details:</strong> Select your State, type your ULB/Facility Name, and provide a valid 10-digit mobile number.
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>Choose Waste Calculation Mode:</strong>
+                  <ul style={{ paddingLeft: '16px', margin: '2px 0' }}>
+                    <li><em>Population Based:</em> Automatically estimates total daily waste using municipal per-capita benchmarks (e.g., 450 g/person/day).</li>
+                    <li><em>Actual TPD:</em> Select this if you weigh incoming refuse trucks at a weighbridge and have an exact daily average.</li>
+                  </ul>
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>Set Segregation Rate (%):</strong> Adjust the slider to match your doorstep source segregation percentage. Higher segregation routes wet waste directly to composting pads and dry waste to MRF sorting sheds.
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>Configure Processing Assets:</strong>
+                  <ul style={{ paddingLeft: '16px', margin: '2px 0' }}>
+                    <li><em>Compost Units (Wet Line):</em> Add active windrow pads or vermicompost pits along with their TPD capacities.</li>
+                    <li><em>MRF Sheds (Dry Line):</em> Add manual sorting sheds or recovery lines to balance recyclable fractions.</li>
+                    <li><em>Mixed Waste Plant:</em> Toggle this option if your facility processes unsegregated mixed waste through trommel screens to derive organic fines and RDF.</li>
+                  </ul>
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>Select Duration:</strong> Click the month buttons to choose one or multiple months (every 6th month selected is free).
+                </li>
+                <li style={{ marginBottom: '6px' }}>
+                  <strong>Preview & Export:</strong> Click <strong>"Generate Master Dataset"</strong> to review the first 5 days for free, then complete the payment to download the complete multi-sheet Excel workbook (`.xlsx`).
+                </li>
+              </ol>
+            </div>
+          )}
+        </div>
+        {/* ======================================================== */}
+        {/* PASTE THE BILINGUAL USER GUIDE BLOCK RIGHT HERE (ABOVE)  */}
+        {/* ======================================================== */}
+
+        {/* MAIN FORM */}
+        <form onSubmit={handleGenerate} style={{ background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '20px' }}>
         {/* FORM */}
         <form onSubmit={handleGenerate} style={{ background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '20px' }}>
           
