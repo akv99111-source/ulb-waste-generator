@@ -157,7 +157,6 @@ export default function App() {
   const isValidTotal = totalPercentage === 100;
   const generateDisabled = appMode === 'STANDALONE' && (facilityType === 'MRF' || facilityType === 'MIXED_PLANT') && isAdvancedMode && !isValidTotal;
 
-  // FIX: Safe mode and facility switchers to prevent React UI crash from stale table data
   const switchAppMode = (mode) => {
     setAppMode(mode);
     setGeneratedMonthlyData(null);
@@ -169,6 +168,32 @@ export default function App() {
     setGeneratedMonthlyData(null);
     setGeneratedConfig(null);
   };
+
+  // --- Dynamic Infrastructure Handlers ---
+  const handleAddUnit = (type) => {
+    if (type === 'compost') {
+      setCompostUnits([...compostUnits, { id: 'c' + Date.now(), label: `Compost Pad ${compostUnits.length + 1}`, type: 'Windrow Pad', capacity: 5 }]);
+    } else {
+      setMrfUnits([...mrfUnits, { id: 'm' + Date.now(), label: `MRF Shed ${mrfUnits.length + 1}`, type: 'Manual Sorting Shed', capacity: 5 }]);
+    }
+  };
+
+  const handleUpdateUnit = (type, id, field, value) => {
+    if (type === 'compost') {
+      setCompostUnits(compostUnits.map(u => u.id === id ? { ...u, [field]: value } : u));
+    } else {
+      setMrfUnits(mrfUnits.map(u => u.id === id ? { ...u, [field]: value } : u));
+    }
+  };
+
+  const handleRemoveUnit = (type, id) => {
+    if (type === 'compost') {
+      if (compostUnits.length > 1) setCompostUnits(compostUnits.filter(u => u.id !== id));
+    } else {
+      if (mrfUnits.length > 1) setMrfUnits(mrfUnits.filter(u => u.id !== id));
+    }
+  };
+  // ----------------------------------------
 
   const getSessionKey = () => {
     const cleanName = name.trim().toLowerCase().replace(/\s+/g, '_');
@@ -221,6 +246,11 @@ export default function App() {
     if (generateDisabled) return;
 
     let monthlyDataMap = {};
+    
+    // Pre-calculate total capacities for proportional distribution
+    const totalCompostCap = compostUnits.reduce((acc, u) => acc + Number(u.capacity || 0), 0) || 1;
+    const totalMrfCap = mrfUnits.reduce((acc, u) => acc + Number(u.capacity || 0), 0) || 1;
+
     selectedMonths.forEach((m) => {
       const days = new Date(startYear, m, 0).getDate();
       let targetTons = (appMode === 'INTEGRATED_3IN1' || facilityType === 'ULB')
@@ -253,10 +283,25 @@ export default function App() {
           const dryOversize = Number((unsegregatedMixed * 0.35).toFixed(3));
           const heavyInerts = Number((unsegregatedMixed * 0.20).toFixed(3));
 
+          // Proportional Mass Balance Distribution
+          const totalCompostFeed = wetSeg + organicFines;
+          const totalMrfFeed = drySeg + dryOversize;
+
+          const compostUnitBreakdown = {};
+          compostUnits.forEach(u => {
+            compostUnitBreakdown[u.id] = Number(((Number(u.capacity) / totalCompostCap) * totalCompostFeed).toFixed(3));
+          });
+
+          const mrfUnitBreakdown = {};
+          mrfUnits.forEach(u => {
+            mrfUnitBreakdown[u.id] = Number(((Number(u.capacity) / totalMrfCap) * totalMrfFeed).toFixed(3));
+          });
+
           logs.push({
             date: dateStr, dayName, totalIntake: Number(dailyTotal.toFixed(3)),
             wetSeg, drySeg, hazSeg, sanSeg, unsegregatedMixed,
-            organicFines, dryOversize, heavyInerts
+            organicFines, dryOversize, heavyInerts,
+            compostUnitBreakdown, mrfUnitBreakdown
           });
         } else if (facilityType === 'ULB') {
           const baseFractions = getSeasonalFractionsULB(m, currentRegionKey);
@@ -286,7 +331,7 @@ export default function App() {
       monthlyDataMap[m] = logs;
     });
 
-    setGeneratedConfig({ appMode, type: facilityType, streams: activeStreams });
+    setGeneratedConfig({ appMode, type: facilityType, streams: activeStreams, compostUnits, mrfUnits });
     setGeneratedMonthlyData(monthlyDataMap);
     setActiveTabMonth(selectedMonths[0]);
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -353,6 +398,21 @@ export default function App() {
         const gateHeaders = ["Date", "Day", `Total Gate Intake (${u})`, `Segregated Wet (${u})`, `Segregated Dry (${u})`, `Domestic Hazardous (${u})`, `Domestic Sanitary (${u})`, `Unsegregated Mixed (${u})`];
         const gateRows = generatedMonthlyData[mId].map(r => [r.date, r.dayName, formatVal(r.totalIntake), formatVal(r.wetSeg), formatVal(r.drySeg), formatVal(r.hazSeg), formatVal(r.sanSeg), formatVal(r.unsegregatedMixed)]);
         XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([gateHeaders, ...gateRows]), `${monthName}_Gate`);
+
+        // Generate Tab for each Compost Unit
+        generatedConfig.compostUnits.forEach(unit => {
+          const headers = ["Date", "Day", "Unit Name", "Type", `Processed Feed (${u})`];
+          const rows = generatedMonthlyData[mId].map(r => [r.date, r.dayName, unit.label, unit.type, formatVal(r.compostUnitBreakdown[unit.id])]);
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, ...rows]), `${monthName}_${unit.label.substring(0,15)}`);
+        });
+
+        // Generate Tab for each MRF Shed
+        generatedConfig.mrfUnits.forEach(unit => {
+          const headers = ["Date", "Day", "Unit Name", "Type", `Processed Feed (${u})`];
+          const rows = generatedMonthlyData[mId].map(r => [r.date, r.dayName, unit.label, unit.type, formatVal(r.mrfUnitBreakdown[unit.id])]);
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, ...rows]), `${monthName}_${unit.label.substring(0,15)}`);
+        });
+
       } else {
         let headers = facilityType === 'ULB' 
           ? ["Date", "Day", `Wet (${u})`, `Dry (${u})`, `Sanitary (${u})`, `Hazardous (${u})`, `C&D (${u})`, `Inerts (${u})`, `Total (${u})`]
@@ -513,12 +573,63 @@ export default function App() {
           </div>
 
           {appMode === 'INTEGRATED_3IN1' && (
-            <div style={{ background: '#ecfdf5', padding: '12px', borderRadius: '6px', border: '1px solid #a7f3d0', marginBottom: '14px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#065f46' }}>
-                {lang === 'hi' ? `कचरा पृथक्करण दर (%): ${segregationRate}%` : `Source Segregation Rate (%): ${segregationRate}%`}
-              </label>
-              <input type="range" min="20" max="95" step="5" value={segregationRate} onChange={(e) => setSegregationRate(Number(e.target.value))} style={{ width: '100%', marginTop: '6px' }} />
-            </div>
+            <>
+              <div style={{ background: '#ecfdf5', padding: '12px', borderRadius: '6px', border: '1px solid #a7f3d0', marginBottom: '14px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#065f46' }}>
+                  {lang === 'hi' ? `कचरा पृथक्करण दर (%): ${segregationRate}%` : `Source Segregation Rate (%): ${segregationRate}%`}
+                </label>
+                <input type="range" min="20" max="95" step="5" value={segregationRate} onChange={(e) => setSegregationRate(Number(e.target.value))} style={{ width: '100%', marginTop: '6px' }} />
+              </div>
+
+              {/* DYNAMIC INFRASTRUCTURE MANAGER */}
+              <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '16px' }}>
+                <h3 style={{ fontSize: '15px', marginTop: 0, marginBottom: '12px', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Layers size={16} /> {lang === 'hi' ? 'मल्टी-यूनिट इन्फ्रास्ट्रक्चर मैनेजर' : 'Multi-Unit Infrastructure Manager'}
+                </h3>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  {/* Compost Units */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <strong style={{ fontSize: '13px', color: '#166534' }}>{lang === 'hi' ? 'कम्पोस्टिंग इकाइयाँ' : 'Composting Units'}</strong>
+                      <button type="button" onClick={() => handleAddUnit('compost')} style={{ background: 'none', border: 'none', color: '#059669', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        <Plus size={14} /> {lang === 'hi' ? 'जोड़ें' : 'Add'}
+                      </button>
+                    </div>
+                    {compostUnits.map((u, idx) => (
+                      <div key={u.id} style={{ display: 'flex', gap: '6px', marginBottom: '6px', alignItems: 'center' }}>
+                        <input style={{ ...inputStyle, marginTop: 0, width: '40%' }} value={u.label} onChange={(e) => handleUpdateUnit('compost', u.id, 'label', e.target.value)} placeholder="Name" />
+                        <select style={{ ...inputStyle, marginTop: 0, width: '35%' }} value={u.type} onChange={(e) => handleUpdateUnit('compost', u.id, 'type', e.target.value)}>
+                          <option>Windrow Pad</option><option>Vermi-Pit</option><option>Biogas Plant</option>
+                        </select>
+                        <input style={{ ...inputStyle, marginTop: 0, width: '25%' }} type="number" placeholder="Cap" value={u.capacity} onChange={(e) => handleUpdateUnit('compost', u.id, 'capacity', e.target.value)} />
+                        {compostUnits.length > 1 && <button type="button" onClick={() => handleRemoveUnit('compost', u.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* MRF Sheds */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <strong style={{ fontSize: '13px', color: '#1e40af' }}>{lang === 'hi' ? 'एमआरएफ (MRF) शेड' : 'MRF Sheds'}</strong>
+                      <button type="button" onClick={() => handleAddUnit('mrf')} style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        <Plus size={14} /> {lang === 'hi' ? 'जोड़ें' : 'Add'}
+                      </button>
+                    </div>
+                    {mrfUnits.map((u, idx) => (
+                      <div key={u.id} style={{ display: 'flex', gap: '6px', marginBottom: '6px', alignItems: 'center' }}>
+                        <input style={{ ...inputStyle, marginTop: 0, width: '40%' }} value={u.label} onChange={(e) => handleUpdateUnit('mrf', u.id, 'label', e.target.value)} placeholder="Name" />
+                        <select style={{ ...inputStyle, marginTop: 0, width: '35%' }} value={u.type} onChange={(e) => handleUpdateUnit('mrf', u.id, 'type', e.target.value)}>
+                          <option>Manual Sorting Shed</option><option>Semi-Auto MRF</option><option>Baling Unit</option>
+                        </select>
+                        <input style={{ ...inputStyle, marginTop: 0, width: '25%' }} type="number" placeholder="Cap" value={u.capacity} onChange={(e) => handleUpdateUnit('mrf', u.id, 'capacity', e.target.value)} />
+                        {mrfUnits.length > 1 && <button type="button" onClick={() => handleRemoveUnit('mrf', u.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}><Trash2 size={16} /></button>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </>
           )}
 
           <div style={{ marginBottom: '14px' }}>
