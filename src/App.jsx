@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck, MapPin, AlertCircle, Phone } from 'lucide-react';
+import { Building2, Download, Lock, Globe, Check, Info, ShieldCheck, MapPin, AlertCircle, Phone, Sliders, Layers } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const MONTHS = [
@@ -73,19 +73,16 @@ const DEFAULT_MRF_STREAMS = [
   { id: 'rdf', label: 'RDF/SCF', defaultWeight: 20, min: 0, max: 100, isDefault: true },
   { id: 'glass_metal', label: 'Glass & Metal', defaultWeight: 10, min: 0, max: 90, isDefault: true },
   { id: 'rejects', label: 'Rejects', defaultWeight: 20, min: 0, max: 100, isDefault: true },
-  { id: 'ldpe', label: 'LDPE/Film Plastics', defaultWeight: 0, min: 0, max: 90, isDefault: false },
-  { id: 'pp', label: 'PP (Polypropylene)', defaultWeight: 0, min: 0, max: 90, isDefault: false },
-  { id: 'tetrapak', label: 'Tetra Pak', defaultWeight: 0, min: 0, max: 90, isDefault: false },
-  { id: 'nonferrous', label: 'Non-Ferrous Metals', defaultWeight: 0, min: 0, max: 90, isDefault: false },
-  { id: 'organic_rejects', label: 'Organic Rejects', defaultWeight: 0, min: 0, max: 100, isDefault: false },
+  { id: 'other_mrf_fraction', label: 'Other/Custom Fraction', defaultWeight: 0, min: 0, max: 50, isDefault: false },
 ];
 
 const DEFAULT_MIXED_STREAMS = [
-  { id: 'trommel_undersize', label: 'Trommel Fines (<80mm / Organics)', defaultWeight: 45, min: 10, max: 80, isDefault: true },
-  { id: 'trommel_oversize_rdf', label: 'RDF Combustibles (>80mm)', defaultWeight: 25, min: 5, max: 60, isDefault: true },
+  { id: 'fine_screen_undersize', label: 'Fine Screen Fraction (Organics/Undersize)', defaultWeight: 45, min: 10, max: 80, isDefault: true },
+  { id: 'coarse_screen_oversize', label: 'Coarse Screen Fraction (RDF/Oversize)', defaultWeight: 25, min: 5, max: 60, isDefault: true },
   { id: 'recovered_recyclables', label: 'Sorted Recyclables (Plastics/Metals)', defaultWeight: 10, min: 1, max: 30, isDefault: true },
   { id: 'inerts_stones', label: 'Inerts, Silt & Stones', defaultWeight: 12, min: 2, max: 40, isDefault: true },
   { id: 'process_rejects', label: 'Process / Landfill Rejects', defaultWeight: 8, min: 1, max: 30, isDefault: true },
+  { id: 'other_mixed_fraction', label: 'Other/Custom Fraction', defaultWeight: 0, min: 0, max: 50, isDefault: false },
 ];
 
 const getSeasonalFractionsULB = (m, regionKey) => {
@@ -121,20 +118,21 @@ const inputStyle = { width: '100%', padding: '9px', borderRadius: '6px', border:
 export default function App() {
   const [lang, setLang] = useState('hi');
   const [selectedState, setSelectedState] = useState('Uttar Pradesh');
-  const [facilityType, setFacilityType] = useState('ULB'); // Options: 'ULB', 'MRF', 'MIXED_PLANT'
+  const [facilityType, setFacilityType] = useState('INTEGRATED_3IN1');
   const [name, setName] = useState('Nagar Palika Parishad');
   const [phone, setPhone] = useState('');
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   
-  // ULB state variables
+  // ULB & Integrated State Variables
   const [ulbCalculationMode, setUlbCalculationMode] = useState('population');
-  const [population, setPopulation] = useState(150000);
+  const [population, setPopulation] = useState(50000);
   const [perCapitaOption, setPerCapitaOption] = useState('450');
   const [customPerCapita, setCustomPerCapita] = useState('');
-  const [actualAverageTpd, setActualAverageTpd] = useState(35);
+  const [actualAverageTpd, setActualAverageTpd] = useState(10);
   const [referencePeriod, setReferencePeriod] = useState(30);
+  const [segregationRate, setSegregationRate] = useState(80);
 
-  // MRF & Mixed Plant state variables
+  // MRF & Mixed Plant State Variables
   const [mrfDailyDryTons, setMrfDailyDryTons] = useState(15);
   const [mrfMaxCapacityTons, setMrfMaxCapacityTons] = useState(25);
   const [mrfStreamsConfig, setMrfStreamsConfig] = useState(
@@ -145,7 +143,7 @@ export default function App() {
   );
   
   const [startYear, setStartYear] = useState(2026);
-  const [selectedMonths, setSelectedMonths] = useState([1, 12]);
+  const [selectedMonths, setSelectedMonths] = useState([1]);
   const [displayUnit, setDisplayUnit] = useState('Tons');
   
   const [generatedMonthlyData, setGeneratedMonthlyData] = useState(null);
@@ -175,7 +173,7 @@ export default function App() {
   const activeStreams = isAdvancedMode ? currentStreamConfig.filter(s => s.active) : currentStreamConfig.filter(s => s.isDefault);
   const totalPercentage = activeStreams.reduce((acc, s) => acc + Number(s.userWeight || 0), 0);
   const isValidTotal = totalPercentage === 100;
-  const generateDisabled = facilityType !== 'ULB' && isAdvancedMode && !isValidTotal;
+  const generateDisabled = (facilityType === 'MRF' || facilityType === 'MIXED_PLANT') && isAdvancedMode && !isValidTotal;
 
   const getSessionKey = () => {
     const cleanName = name.trim().toLowerCase().replace(/\s+/g, '_');
@@ -216,14 +214,19 @@ export default function App() {
     }
   };
 
-  // PRICING CALCULATION LOGIC INCLUDING FLAT 200/mo FOR MIXED WASTE
   const getPricingDetails = () => {
     const count = selectedMonths.length;
     const freeMonths = Math.floor(count / 6);
     const billableMonths = count - freeMonths;
     
-    // Flat ₹200/mo for Mixed Waste; otherwise ₹150 (Advanced) or ₹100 (Standard)
-    const baseRate = facilityType === 'MIXED_PLANT' ? 200 : (isAdvancedMode ? 150 : 100);
+    let baseRate = 100;
+    if (facilityType === 'INTEGRATED_3IN1') {
+      baseRate = 500;
+    } else if (facilityType === 'MIXED_PLANT') {
+      baseRate = 200;
+    } else if (isAdvancedMode) {
+      baseRate = 150;
+    }
     
     const baseTotal = billableMonths * baseRate;
     const effectiveFeeRate = 0.0236; 
@@ -238,7 +241,7 @@ export default function App() {
 
   const handleFacilityChange = (type) => {
     setFacilityType(type);
-    if (type === 'ULB') setIsAdvancedMode(false);
+    if (type === 'ULB' || type === 'INTEGRATED_3IN1') setIsAdvancedMode(false);
   };
 
   const updateStreamConfig = (id, field, value) => {
@@ -268,11 +271,11 @@ export default function App() {
     selectedMonths.forEach((m) => {
       const days = new Date(startYear, m, 0).getDate();
       
-      let targetTons = facilityType === 'ULB' 
+      let targetTons = (facilityType === 'ULB' || facilityType === 'INTEGRATED_3IN1')
         ? (ulbCalculationMode === 'population' ? (Number(population) * parsedPerCapita) / 1000000 : Number(actualAverageTpd))
         : Number(mrfDailyDryTons);
 
-      const seedString = `${facilityType}-${selectedState}-${name}-${startYear}-${m}-${ulbCalculationMode}-${targetTons}-${isAdvancedMode}`;
+      const seedString = `${facilityType}-${selectedState}-${name}-${startYear}-${m}-${ulbCalculationMode}-${targetTons}-${segregationRate}`;
       const random = mulberry32(cyrb128(seedString));
 
       let logs = [];
@@ -287,7 +290,47 @@ export default function App() {
         if (isWeekend) noise *= 1.05;
         const dailyTotal = targetTons * noise;
 
-        if (facilityType === 'ULB') {
+        if (facilityType === 'INTEGRATED_3IN1') {
+          const segFrac = segregationRate / 100;
+          const unsegFrac = 1 - segFrac;
+
+          // Gate Log Splits
+          const segregatedTotal = dailyTotal * segFrac;
+          const unsegregatedMixed = Number((dailyTotal * unsegFrac).toFixed(3));
+
+          const wetSeg = Number((segregatedTotal * 0.60).toFixed(3));
+          const drySeg = Number((segregatedTotal * 0.32).toFixed(3));
+          const hazSeg = Number((segregatedTotal * 0.03).toFixed(3));
+          const sanSeg = Number((segregatedTotal * 0.05).toFixed(3));
+
+          // Pre-Sorting Log Splits
+          const organicFines = Number((unsegregatedMixed * 0.45).toFixed(3));
+          const dryOversize = Number((unsegregatedMixed * 0.35).toFixed(3));
+          const heavyInerts = Number((unsegregatedMixed * 0.20).toFixed(3));
+
+          // Compost Log Splits
+          const totalCompostInput = Number((wetSeg + organicFines).toFixed(3));
+          const moistureLoss = Number((totalCompostInput * 0.65).toFixed(3));
+          const compostYield = Number((totalCompostInput * 0.18).toFixed(3));
+          const compostRejects = Number((totalCompostInput - moistureLoss - compostYield).toFixed(3));
+
+          // MRF Log Splits
+          const totalMrfInput = Number((drySeg + dryOversize).toFixed(3));
+          const pet = Number((totalMrfInput * 0.18).toFixed(3));
+          const hdpe = Number((totalMrfInput * 0.12).toFixed(3));
+          const paper = Number((totalMrfInput * 0.25).toFixed(3));
+          const glassMetal = Number((totalMrfInput * 0.10).toFixed(3));
+          const rdf = Number((totalMrfInput * 0.22).toFixed(3));
+          const mrfRejects = Number((totalMrfInput - pet - hdpe - paper - glassMetal - rdf).toFixed(3));
+
+          logs.push({
+            date: dateStr, dayName, totalIntake: Number(dailyTotal.toFixed(3)),
+            wetSeg, drySeg, hazSeg, sanSeg, unsegregatedMixed,
+            organicFines, dryOversize, heavyInerts,
+            totalCompostInput, moistureLoss, compostYield, compostRejects,
+            totalMrfInput, pet, hdpe, paper, glassMetal, rdf, mrfRejects
+          });
+        } else if (facilityType === 'ULB') {
           const baseFractions = getSeasonalFractionsULB(m, currentRegionKey);
           let raw = baseFractions.map(r => r * (0.88 + random() * 0.24));
           let sum = raw.reduce((a, b) => a + b, 0);
@@ -295,7 +338,7 @@ export default function App() {
 
           let c1 = Number((dailyTotal * norm[0]).toFixed(3));
           let c2 = Number((dailyTotal * norm[1]).toFixed(3));
-          let c3 = Number((dailyTotal * norm[3]).toFixed(3));
+          let c3 = Number((dailyTotal * norm[2]).toFixed(3));
           let c4 = Number((dailyTotal * norm[3]).toFixed(3));
           let c5 = Number((dailyTotal * norm[4]).toFixed(3));
           let c6 = Number((dailyTotal * norm[5]).toFixed(3));
@@ -416,47 +459,60 @@ export default function App() {
       }
       
       const u = displayUnit === 'kg' ? 'kg' : 'Tons';
-      
-      let headers = [];
-      if (generatedConfig.type === 'ULB') {
-        headers = ["Date", "Day", `Wet (${u})`, `Dry (${u})`, `Sanitary (${u})`, `Special Care/Hazardous (${u})`, `C&D (${u})`, `Inerts (${u})`, `Total (${u})`];
-      } else {
-        headers = ["Date", "Day", ...generatedConfig.streams.map(s => `${s.label} (${u})`), `Total Processing (${u})`];
-      }
-
       const wb = XLSX.utils.book_new();
-      
+
       selectedMonths.forEach((mId) => {
-        const sheetData = [headers, ...generatedMonthlyData[mId].map(r => {
+        const monthName = MONTHS.find(m => m.id === mId)?.fullEn;
+
+        if (generatedConfig.type === 'INTEGRATED_3IN1') {
+          // Sheet 1: Gate Log
+          const gateHeaders = ["Date", "Day", `Total Intake (${u})`, `Segregated Wet (${u})`, `Segregated Dry (${u})`, `Domestic Hazardous (${u})`, `Domestic Sanitary (${u})`, `Unsegregated Mixed (${u})`];
+          const gateRows = generatedMonthlyData[mId].map(r => [r.date, r.dayName, formatVal(r.totalIntake), formatVal(r.wetSeg), formatVal(r.drySeg), formatVal(r.hazSeg), formatVal(r.sanSeg), formatVal(r.unsegregatedMixed)]);
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([gateHeaders, ...gateRows]), `${monthName}_Gate`);
+
+          // Sheet 2: Pre-Sorting Log
+          const preHeaders = ["Date", "Day", `Mixed Intake (${u})`, `Fine Screen Fraction (${u})`, `Coarse Screen Fraction (${u})`, `Heavy Inerts (${u})`];
+          const preRows = generatedMonthlyData[mId].map(r => [r.date, r.dayName, formatVal(r.unsegregatedMixed), formatVal(r.organicFines), formatVal(r.dryOversize), formatVal(r.heavyInerts)]);
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([preHeaders, ...preRows]), `${monthName}_PreSort`);
+
+          // Sheet 3: Compost Log
+          const compostHeaders = ["Date", "Day", `Total Organic Input (${u})`, `Moisture Loss (${u})`, `Compost Yield (${u})`, `Rejects (${u})`];
+          const compostRows = generatedMonthlyData[mId].map(r => [r.date, r.dayName, formatVal(r.totalCompostInput), formatVal(r.moistureLoss), formatVal(r.compostYield), formatVal(r.compostRejects)]);
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([compostHeaders, ...compostRows]), `${monthName}_Compost`);
+
+          // Sheet 4: MRF Log
+          const mrfHeaders = ["Date", "Day", `Total Dry Input (${u})`, `PET (${u})`, `HDPE (${u})`, `Paper/Cardboard (${u})`, `Glass & Metal (${u})`, `RDF (${u})`, `Rejects (${u})`];
+          const mrfRows = generatedMonthlyData[mId].map(r => [r.date, r.dayName, formatVal(r.totalMrfInput), formatVal(r.pet), formatVal(r.hdpe), formatVal(r.paper), formatVal(r.glassMetal), formatVal(r.rdf), formatVal(r.mrfRejects)]);
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([mrfHeaders, ...mrfRows]), `${monthName}_MRF`);
+
+        } else {
+          let headers = [];
           if (generatedConfig.type === 'ULB') {
-            return [r.date, r.dayName, formatVal(r.c1), formatVal(r.c2), formatVal(r.c3), formatVal(r.c4), formatVal(r.c5), formatVal(r.c6), formatVal(r.total)];
+            headers = ["Date", "Day", `Wet (${u})`, `Dry (${u})`, `Sanitary (${u})`, `Special Care (${u})`, `C&D (${u})`, `Inerts (${u})`, `Total (${u})`];
           } else {
-            const row = [r.date, r.dayName];
-            generatedConfig.streams.forEach(s => row.push(formatVal(r.streams[s.id])));
-            row.push(formatVal(r.total));
-            return row;
+            headers = ["Date", "Day", ...generatedConfig.streams.map(s => `${s.label} (${u})`), `Total Processing (${u})`];
           }
-        })];
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetData), MONTHS.find(m => m.id === mId)?.fullEn);
+
+          const sheetData = [headers, ...generatedMonthlyData[mId].map(r => {
+            if (generatedConfig.type === 'ULB') {
+              return [r.date, r.dayName, formatVal(r.c1), formatVal(r.c2), formatVal(r.c3), formatVal(r.c4), formatVal(r.c5), formatVal(r.c6), formatVal(r.total)];
+            } else {
+              const row = [r.date, r.dayName];
+              generatedConfig.streams.forEach(s => row.push(formatVal(r.streams[s.id])));
+              row.push(formatVal(r.total));
+              return row;
+            }
+          })];
+          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(sheetData), monthName);
+        }
       });
 
-      if (typeof window !== 'undefined' && window.gtag) {
-        window.gtag('event', 'excel_download', {
-          facility_type: facilityType,
-          ulb_name: name,
-          selected_state: selectedState,
-          months_count: selectedMonths.length,
-          mode: isAdvancedMode ? 'Advanced' : 'Standard'
-        });
-      }
-      
       const firstMonthObj = MONTHS.find(m => m.id === selectedMonths[0]);
       const monthStr = firstMonthObj ? firstMonthObj.shortEn : 'Jan';
       const yearStr = String(startYear).slice(-2);
       const safeName = name.trim().replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
       
       const customFileName = `${facilityType}_${safeName}_${monthStr}_${yearStr}.xlsx`;
-
       XLSX.writeFile(wb, customFileName);
 
     } catch (error) {
@@ -481,10 +537,10 @@ export default function App() {
               </span>
               <h1 style={{ fontSize: '22px', margin: '6px 0 2px 0', fontWeight: '800' }}>
                 <Building2 size={22} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                {lang === 'hi' ? 'यूएलबी, एमआरएफ एवं मिक्स्ड वेस्ट प्लांट लॉग-बुक जनरेटर' : 'ULB, MRF & Mixed Waste Logbook Generator'}
+                {lang === 'hi' ? 'एकीकृत 3-इन-1 यूएलबी, एमआरएफ एवं कम्पोस्ट लॉग-बुक जनरेटर' : 'Integrated 3-in-1 ULB, MRF & Compost Logbook Generator'}
               </h1>
               <p style={{ fontSize: '13px', margin: 0, color: '#a7f3d0' }}>
-                {lang === 'hi' ? 'ट्रॉमल पृथक्करण, 4-स्ट्रीम अपशिष्ट एवं राज्यवार एडजस्टमेंट टूल || **केवल एजुकेशन व् एस्टीमेशन हेतु' : 'Automated 4-Stream & Trommel Logbook Engine with State-Wise Calibration || ** For Educational & Estimation Purpose'}
+                {lang === 'hi' ? 'गेट एंट्री, प्री-सॉर्टिंग, खाद एवं एमआरएफ मास्टर लॉग-बुक इंजन || **केवल एजुकेशन व् एस्टीमेशन हेतु' : 'Master Gate, Pre-Sorting, Compost & MRF Logbook Engine || ** For Educational & Estimation Purpose'}
               </p>
             </div>
             <button type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#047857', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px' }}>
@@ -499,9 +555,12 @@ export default function App() {
             
             <div style={{ marginBottom: '14px', display: 'flex', gap: '15px', alignItems: 'center', fontSize: '14px', flexWrap: 'wrap' }}>
               <strong>{lang === 'hi' ? 'सुविधा प्रकार:' : 'Facility Type:'}</strong>
-              <label style={{ cursor: 'pointer' }}><input type="radio" value="ULB" checked={facilityType === 'ULB'} onChange={() => handleFacilityChange('ULB')} /> ULB</label>
-              <label style={{ cursor: 'pointer' }}><input type="radio" value="MRF" checked={facilityType === 'MRF'} onChange={() => handleFacilityChange('MRF')} /> MRF Centre</label>
-              <label style={{ cursor: 'pointer' }}><input type="radio" value="MIXED_PLANT" checked={facilityType === 'MIXED_PLANT'} onChange={() => handleFacilityChange('MIXED_PLANT')} /> Mixed Waste Plant (Trommel)</label>
+              <label style={{ cursor: 'pointer', color: '#047857', fontWeight: 'bold' }}>
+                <input type="radio" value="INTEGRATED_3IN1" checked={facilityType === 'INTEGRATED_3IN1'} onChange={() => handleFacilityChange('INTEGRATED_3IN1')} /> Integrated 3-in-1 Master Suite (₹500/mo)
+              </label>
+              <label style={{ cursor: 'pointer' }}><input type="radio" value="ULB" checked={facilityType === 'ULB'} onChange={() => handleFacilityChange('ULB')} /> ULB Only</label>
+              <label style={{ cursor: 'pointer' }}><input type="radio" value="MRF" checked={facilityType === 'MRF'} onChange={() => handleFacilityChange('MRF')} /> MRF Centre Only</label>
+              <label style={{ cursor: 'pointer' }}><input type="radio" value="MIXED_PLANT" checked={facilityType === 'MIXED_PLANT'} onChange={() => handleFacilityChange('MIXED_PLANT')} /> Mixed Waste Plant (Screening)</label>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '14px' }}>
@@ -531,7 +590,7 @@ export default function App() {
                 <input style={inputStyle} type="tel" maxLength={10} placeholder="9876543210" required value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} />
               </div>
 
-              {facilityType === 'ULB' ? (
+              {(facilityType === 'ULB' || facilityType === 'INTEGRATED_3IN1') ? (
                 <>
                   <div style={{ gridColumn: '1 / -1', background: '#f1f5f9', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '6px' }}>
                     <strong style={{ fontSize: '13px' }}>{lang === 'hi' ? 'ULB गणना का आधार' : 'ULB Waste Calculation Basis'}</strong>
@@ -583,6 +642,18 @@ export default function App() {
                       </div>
                     </>
                   )}
+
+                  {facilityType === 'INTEGRATED_3IN1' && (
+                    <div style={{ gridColumn: '1 / -1', background: '#ecfdf5', padding: '12px', borderRadius: '6px', border: '1px solid #a7f3d0', marginTop: '6px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#065f46' }}>
+                        {lang === 'hi' ? 'स्रोत पृथक्करण दर (%)' : 'Source Segregation Efficiency (%)'}: {segregationRate}%
+                      </label>
+                      <input type="range" min="20" max="95" step="5" value={segregationRate} onChange={(e) => setSegregationRate(Number(e.target.value))} style={{ width: '100%', marginTop: '6px' }} />
+                      <div style={{ fontSize: '11px', color: '#047857', marginTop: '4px' }}>
+                        {segregationRate}% Segregated (Sent to Compost & MRF) | {100 - segregationRate}% Mixed Waste (Pre-screened at site front-end)
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -602,46 +673,50 @@ export default function App() {
                       <span style={{ color: '#dc2626', marginLeft: '6px', fontSize: '12px' }}>(Warning: Daily intake exceeds plant design capacity.)</span>
                     )}
                   </div>
-                  
-                  {/* ADVANCED CONFIGURATION TOGGLE */}
+
+                  {/* ADVANCED CONFIGURATION WITH OTHER/CUSTOM FRACTION BOX */}
                   <div style={{ gridColumn: '1 / -1', marginTop: '10px', background: isAdvancedMode ? '#fffbeb' : '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', color: '#0f172a', cursor: 'pointer', fontSize: '13px' }}>
                       <input type="checkbox" checked={isAdvancedMode} onChange={(e) => setIsAdvancedMode(e.target.checked)} style={{ width: '16px', height: '16px', cursor: 'pointer' }} />
                       {lang === 'hi' 
-                        ? `!! ADVANCE Log-Book !! एडवांस्ड ${facilityType === 'MIXED_PLANT' ? 'मिक्स्ड वेस्ट ट्रॉमल (₹200/माह)' : 'एमआरएफ (₹150/माह)'} कॉन्फ़िगरेशन सक्षम करें` 
-                        : `Enable Advanced ${facilityType === 'MIXED_PLANT' ? 'Mixed Waste Trommel (₹200/mo)' : 'MRF (₹150/mo)'} Configuration`}
+                        ? `!! ADVANCE Log-Book !! एडवांस्ड ${facilityType === 'MIXED_PLANT' ? 'स्क्रीनिंग (₹200/माह)' : 'एमआरएफ (₹150/माह)'} कॉन्फ़िगरेशन सक्षम करें` 
+                        : `Enable Advanced ${facilityType === 'MIXED_PLANT' ? 'Mixed Waste Screening (₹200/mo)' : 'MRF (₹150/mo)'} Configuration`}
                     </label>
 
                     {isAdvancedMode && (
                       <div style={{ marginTop: '14px', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
                         <p style={{ fontSize: '12px', color: '#475569', margin: '0 0 10px 0' }}>
                           {facilityType === 'MIXED_PLANT'
-                            ? (lang === 'hi' ? 'ट्रॉमल कट-ऑफ (जैसे <80mm फ़ाइन्स, >80mm RDF) के आधार पर पृथक्करण दर सेट करें।' : 'Set mass-balance splits based on mechanical trommel screen sizes (<80mm fines, >80mm RDF, etc.).')
+                            ? (lang === 'hi' ? 'फ़ाइन स्क्रीन एवं कोर्स स्क्रीन पृथक्करण प्रतिशत दर्ज करें।' : 'Set mass-balance splits based on fine screen and coarse screen fractions.')
                             : (lang === 'hi' ? 'विशिष्ट पृथक्कृत स्ट्रीम चुनें और सांकेतिक प्रतिशत दर्ज करें।' : 'Select sorted dry streams and input composition percentages.')}
                         </p>
                         
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '10px' }}>
                           {currentStreamConfig.map(stream => (
-                            <div key={stream.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#fff', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', opacity: stream.active ? 1 : 0.6 }}>
-                              <input type="checkbox" checked={stream.active} onChange={(e) => updateStreamConfig(stream.id, 'active', e.target.checked)} style={{ cursor: 'pointer' }} />
-                              <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
-                                <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e293b' }}>{stream.label}</span>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                                  <input type="number" min={stream.min} max={stream.max} value={stream.userWeight} onChange={(e) => updateStreamConfig(stream.id, 'userWeight', e.target.value)} disabled={!stream.active} style={{ width: '100%', fontSize: '12px', padding: '4px', border: '1px solid #cbd5e1', borderRadius: '4px' }} />
-                                  <span style={{ fontSize: '11px', color: '#64748b' }}>%</span>
-                                </div>
+                            <div key={stream.id} style={{ display: 'flex', flexDirection: 'column', background: '#fff', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px', opacity: stream.active ? 1 : 0.6 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <input type="checkbox" checked={stream.active} onChange={(e) => updateStreamConfig(stream.id, 'active', e.target.checked)} style={{ cursor: 'pointer' }} />
+                                {stream.id.startsWith('other_') ? (
+                                  <input 
+                                    type="text" 
+                                    value={stream.label} 
+                                    onChange={(e) => updateStreamConfig(stream.id, 'label', e.target.value)}
+                                    placeholder="Custom Fraction Name"
+                                    style={{ fontSize: '11px', fontWeight: 'bold', padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '3px', width: '100%' }}
+                                  />
+                                ) : (
+                                  <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#1e293b' }}>{stream.label}</span>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px' }}>
+                                <input type="number" min={stream.min} max={stream.max} value={stream.userWeight} onChange={(e) => updateStreamConfig(stream.id, 'userWeight', e.target.value)} disabled={!stream.active} style={{ width: '100%', fontSize: '12px', padding: '4px', border: '1px solid #cbd5e1', borderRadius: '4px' }} />
+                                <span style={{ fontSize: '11px', color: '#64748b' }}>%</span>
                               </div>
                             </div>
                           ))}
                         </div>
 
-                        {/* MASS BALANCE 100% VALIDATION COUNTER */}
-                        <div style={{ 
-                          display: 'flex', justifyContent: 'space-between', alignItems: 'center', 
-                          marginTop: '15px', padding: '10px 15px', borderRadius: '6px', 
-                          background: isValidTotal ? '#dcfce7' : '#fee2e2', 
-                          border: isValidTotal ? '1px solid #22c55e' : '1px solid #ef4444' 
-                        }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '15px', padding: '10px 15px', borderRadius: '6px', background: isValidTotal ? '#dcfce7' : '#fee2e2', border: isValidTotal ? '1px solid #22c55e' : '1px solid #ef4444' }}>
                            <span style={{ fontWeight: 'bold', color: isValidTotal ? '#166534' : '#991b1b', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                               {!isValidTotal && <AlertCircle size={16} />} 
                               {lang === 'hi' ? 'कुल द्रव्यमान संतुलन:' : 'Total Mass Balance:'} {totalPercentage}%
@@ -678,18 +753,15 @@ export default function App() {
                 <ul style={{ margin: 0, paddingLeft: '18px' }}>
                   <li>{lang === 'hi' ? 'तटीय/दक्षिणी राज्यों में नमी एवं जैविक कचरा अधिक रहता है (~62% Wet Base)।' : 'Coastal & Southern states experience higher humidity and organic fraction (~62% Wet Base).'}</li>
                   <li>{lang === 'hi' ? 'मेट्रो/पश्चिमी राज्यों में प्लास्टिक व पैकेजिंग अधिक होती है (~26% Dry Base)।' : 'Metro & Western states produce higher packaging/plastic waste (~26% Dry Base).'}</li>
-                  <li>{lang === 'hi' ? 'उत्तरी व पूर्वोत्तर क्षेत्रों में मौसमी तापमान और फलों के उत्पादन के अनुसार गीला कचरा बदलता है।' : 'Northern & NE states scale wet waste dynamically with seasonal fruit harvests and temperature.'}</li>
                 </ul>
               </div>
             )}
 
             <div style={{ marginBottom: '14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap' }}>
-                <strong style={{ fontSize: '13px' }}>{lang === 'hi' ? 'माह चुनें (पूरे वर्ष तक):' : 'Select Months (Up to full year):'}</strong>
+                <strong style={{ fontSize: '13px' }}>{lang === 'hi' ? 'माह चुनें:' : 'Select Months:'}</strong>
                 <span style={{ color: '#059669', fontWeight: 'bold', fontSize: '13px', background: '#ecfdf5', padding: '4px 10px', borderRadius: '4px', border: '1px solid #a7f3d0' }}>
-                  {pricing.count} {lang === 'hi' ? 'माह' : 'Month/s'} 
-                  {pricing.freeMonths > 0 && <span style={{ color: '#047857' }}> (Includes {pricing.freeMonths} Free)</span>} 
-                  {' '}— ₹{pricing.total} 
+                  {pricing.count} {lang === 'hi' ? 'माह' : 'Month/s'} — ₹{pricing.total} 
                   <span style={{ fontSize: '10px', color: '#047857', marginLeft: '4px' }}>
                     (₹{pricing.baseTotal} + ₹{pricing.gatewayFee} PG Fee)
                   </span>
@@ -711,7 +783,7 @@ export default function App() {
             </div>
 
             <button type="submit" disabled={generateDisabled} style={{ width: '100%', padding: '12px', background: generateDisabled ? '#94a3b8' : '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: generateDisabled ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
-              {generateDisabled ? 'Please fix total mass balance to exactly 100%' : (lang === 'hi' ? 'लॉग-बुक जनरेट करें →' : 'Generate Dataset →')}
+              {lang === 'hi' ? '3-इन-1 मास्टर लॉग-बुक जनरेट करें →' : 'Generate Master Logbook Dataset →'}
             </button>
           </form>
 
@@ -719,8 +791,8 @@ export default function App() {
             <div ref={resultsRef} style={{ background: '#fff', padding: '15px', borderRadius: '8px', border: '1px solid #cbd5e1', scrollMarginTop: '15px' }}>
               
               <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '10px', borderRadius: '6px', marginBottom: '12px', fontSize: '12px', color: '#1e40af' }}>
-                <strong><Info size={14} style={{ verticalAlign: 'middle' }} /> Indicative regional modelling assumptions ({currentStateObj.nameEn} / {currentRegionObj.nameEn}):</strong> 
-                {generatedConfig.type === 'ULB' ? ' 4-Stream segregation applied.' : (generatedConfig.type === 'MIXED_PLANT' ? ' Mechanical trommel split models applied.' : ' Standard MRF stream composition applied.')}
+                <strong><Info size={14} style={{ verticalAlign: 'middle' }} /> Modelling configuration applied ({currentStateObj.nameEn}):</strong> 
+                {generatedConfig.type === 'INTEGRATED_3IN1' ? ' Integrated 4-Tab Master Suite (Gate, Pre-Sort, Compost, MRF) generated with fine & coarse screen mass-balance.' : ' Single facility model applied.'}
               </div>
 
               <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '12px', overflowX: 'auto' }}>
@@ -743,18 +815,7 @@ export default function App() {
                   {isPaid ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <button onClick={downloadMultiSheetExcel} style={{ padding: '6px 12px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                        <Download size={13} /> Export Excel (.xlsx)
-                      </button>
-                      <button 
-                        type="button" 
-                        onClick={() => {
-                          localStorage.removeItem(getSessionKey());
-                          setIsPaid(false);
-                          alert("Paid session cleared from this browser.");
-                        }}
-                        style={{ background: 'none', border: 'none', color: '#dc2626', textDecoration: 'underline', cursor: 'pointer', fontSize: '11px' }}
-                      >
-                        Clear Session
+                        <Download size={13} /> Export Master Excel (.xlsx)
                       </button>
                     </div>
                   ) : (
@@ -765,35 +826,25 @@ export default function App() {
                 </div>
               </div>
 
-              {/* TABLE CONTAINER WITH ANTI-COPY PROTECTION */}
-              <div 
-                onContextMenu={(e) => e.preventDefault()} 
-                style={{ 
-                  overflowX: 'auto', 
-                  border: '1px solid #cbd5e1', 
-                  borderRadius: '4px',
-                  userSelect: isPaid ? 'text' : 'none', 
-                  WebkitUserSelect: isPaid ? 'text' : 'none'
-                }}
-              >
+              {/* TABLE PREVIEW */}
+              <div onContextMenu={(e) => e.preventDefault()} style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px', userSelect: isPaid ? 'text' : 'none' }}>
                 <table cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '700px' }}>
                   <thead>
                     <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
                       <th>Date</th><th>Day</th>
-                      {generatedConfig.type === 'ULB' ? (
+                      {generatedConfig.type === 'INTEGRATED_3IN1' ? (
                         <>
-                          <th style={{ background: '#ecfdf5' }}>Wet ({displayUnit})</th>
-                          <th>Dry ({displayUnit})</th>
-                          <th>Sanitary ({displayUnit})</th>
-                          <th>Special Care ({displayUnit})</th>
-                          <th>C&D ({displayUnit})</th>
-                          <th>Inerts ({displayUnit})</th>
-                          <th>Total ({displayUnit})</th>
+                          <th>Total Gate Intake</th>
+                          <th style={{ background: '#ecfdf5' }}>Seg. Wet Waste</th>
+                          <th>Seg. Dry Waste</th>
+                          <th>Mixed Waste (Unsegregated)</th>
+                          <th>Compost Yield</th>
+                          <th>MRF Recyclables</th>
                         </>
                       ) : (
                         <>
-                          {generatedConfig.streams.map(s => <th key={s.id}>{s.label} ({displayUnit})</th>)}
-                          <th>Total Intake ({displayUnit})</th>
+                          {generatedConfig.streams?.map(s => <th key={s.id}>{s.label} ({displayUnit})</th>)}
+                          <th>Total ({displayUnit})</th>
                         </>
                       )}
                     </tr>
@@ -802,16 +853,18 @@ export default function App() {
                     {visibleRows.map((r, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
                         <td>{r.date}</td><td>{r.dayName}</td>
-                        {generatedConfig.type === 'ULB' ? (
+                        {generatedConfig.type === 'INTEGRATED_3IN1' ? (
                           <>
-                            <td style={{ background: '#ecfdf5' }}>{formatVal(r.c1)}</td>
-                            <td>{formatVal(r.c2)}</td><td>{formatVal(r.c3)}</td><td>{formatVal(r.c4)}</td>
-                            <td>{formatVal(r.c5)}</td><td>{formatVal(r.c6)}</td>
+                            <td><strong>{formatVal(r.totalIntake)}</strong></td>
+                            <td style={{ background: '#ecfdf5' }}>{formatVal(r.wetSeg)}</td>
+                            <td>{formatVal(r.drySeg)}</td>
+                            <td>{formatVal(r.unsegregatedMixed)}</td>
+                            <td>{formatVal(r.compostYield)}</td>
+                            <td>{formatVal(r.pet + r.hdpe + r.paper)}</td>
                           </>
                         ) : (
-                          generatedConfig.streams.map(s => <td key={s.id}>{formatVal(r.streams[s.id])}</td>)
+                          generatedConfig.streams?.map(s => <td key={s.id}>{formatVal(r.streams[s.id])}</td>)
                         )}
-                        <td><strong>{formatVal(r.total)}</strong></td>
                       </tr>
                     ))}
                   </tbody>
@@ -822,99 +875,17 @@ export default function App() {
                 <div style={{ border: '2px dashed #059669', background: '#ecfdf5', padding: '15px', textAlign: 'center', marginTop: '12px', borderRadius: '6px' }}>
                   <Lock style={{ color: '#059669' }} size={18} />
                   <h4 style={{ margin: '4px 0', color: '#065f46', fontSize: '15px' }}>Preview Locked (Days 1–5 Only)</h4>
-                  <p style={{ margin: '4px 0 10px 0', color: '#047857', fontSize: '13px' }}>Pay ₹{pricing.total} to unlock complete dataset and multi-tab Excel (.xlsx) file.</p>
+                  <p style={{ margin: '4px 0 10px 0', color: '#047857', fontSize: '13px' }}>Pay ₹{pricing.total} to unlock complete 4-tab Master Excel workbook.</p>
                   
                   <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 20px', background: '#059669', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
-                    {isProcessing ? 'Connecting...' : `Pay ₹${pricing.total} & Download Complete File`}
+                    {isProcessing ? 'Connecting...' : `Pay ₹${pricing.total} & Download Complete Master File`}
                   </button>
-
-                  <div style={{ marginTop: '15px' }}>
-                    <button type="button" onClick={() => setShowRestoreModal(true)} style={{ background: 'none', border: 'none', color: '#0369a1', textDecoration: 'underline', cursor: 'pointer', fontSize: '12px' }}>
-                      Already paid but download failed? Restore access.
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
           )}
         </div>
       </div>
-
-      {/* RESTORE ACCESS MODAL */}
-      {showRestoreModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', maxWidth: '400px', width: '90%' }}>
-            <h3 style={{ margin: '0 0 10px 0', fontSize: '16px', color: '#0f172a' }}>Restore Logbook Access</h3>
-            <p style={{ fontSize: '12px', color: '#475569', marginBottom: '15px' }}>Enter the Cashfree Order ID from your email/SMS receipt to verify your payment and unlock the download.</p>
-            <input 
-              type="text" 
-              placeholder="e.g. SWM_17105928..." 
-              value={restoreOrderId} 
-              onChange={(e) => setRestoreOrderId(e.target.value)}
-              style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid #cbd5e1', marginBottom: '15px', boxSizing: 'border-box' }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px' }}>
-              <button onClick={() => setShowRestoreModal(false)} style={{ flex: 1, padding: '10px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
-              <button onClick={handleRestoreAccess} disabled={isRestoring} style={{ flex: 1, padding: '10px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                {isRestoring ? 'Verifying...' : 'Verify Payment'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* POLICY POPUP MODAL */}
-      {activePolicy && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', maxWidth: '500px', width: '90%', maxHeight: '80vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px' }}>
-              <h3 style={{ margin: 0, fontSize: '16px', color: '#0f172a' }}>
-                {activePolicy === 'contact' ? 'Contact Us' : activePolicy === 'terms' ? 'Terms & Conditions' : 'Refunds & Cancellations'}
-              </h3>
-              <button onClick={() => setActivePolicy(null)} style={{ border: 'none', background: 'none', cursor: 'pointer', fontWeight: 'bold', fontSize: '16px' }}>✕</button>
-            </div>
-            
-            {activePolicy === 'contact' && (
-              <div style={{ fontSize: '13px', lineHeight: '1.6', color: '#334155' }}>
-                <p><strong>Entity Name:</strong> Consilience Research Foundation (CRF)</p>
-                <p><strong>Email:</strong> crginfomail@gmail.com</p>
-                <p><strong>Address:</strong> Lucknow, Uttar Pradesh, India </p>
-                <p><strong>Service Pricing:</strong> ₹100/mo (Standard), ₹150/mo (Advanced MRF), or ₹200/mo (Mixed Waste Plant), with Volume Pricing available.</p>
-              </div>
-            )}
-            {activePolicy === 'terms' && (
-              <div style={{ fontSize: '13px', lineHeight: '1.6', color: '#334155' }}>
-                <p>By using the SWM Waste Logbook Generator, users agree that the datasets provided are decision-support estimates generated for research, planning, and operational modeling.</p>
-                <p>Purchased digital reports are rendered dynamically and delivered instantly in multi-sheet Excel (.xlsx) format upon payment completion in INR.</p>
-              </div>
-            )}
-            {activePolicy === 'refund' && (
-              <div style={{ fontSize: '13px', lineHeight: '1.6', color: '#334155' }}>
-                <p>Since products are digital logbook datasets generated immediately upon successful transaction, cancellations are not applicable once files are downloaded.</p>
-                <p>In case of double-deduction or technical payment failures where data is not delivered, refunds will be processed back to the original payment source within 5–7 business days.</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* FOOTER SECTION */}
-      <div style={{ marginTop: '30px', padding: '15px 10px', borderTop: '1px solid #cbd5e1', textAlign: 'center', fontSize: '11px', color: '#64748b', lineHeight: '1.5', background: '#ffffff' }}>
-        <p style={{ margin: '0 0 6px 0' }}>
-          <strong>Disclaimer:</strong> This web tool is developed strictly for educational, research, and estimation purposes. Output datasets serve as decision-support models for solid waste management planning.
-        </p>
-        <p style={{ margin: '0 0 8px 0' }}>
-          Copyright © 2026 CRF | Engineered & Maintained by <strong>Team CRF</strong> — <a href="https://www.consilienceresearch.in/" target="_blank" rel="noopener noreferrer" style={{ color: '#059669', fontWeight: 'bold', textDecoration: 'none' }}>Consilience Research Foundation</a>, an Urban & Infrastructure Research Consultancy Institute.
-        </p>
-
-        {/* CASHFREE MANDATORY POLICY LINKS */}
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', flexWrap: 'wrap' }}>
-          <button type="button" onClick={() => setActivePolicy('contact')} style={{ background: 'none', border: 'none', color: '#059669', cursor: 'pointer', textDecoration: 'underline', fontSize: '11px', padding: 0 }}>Contact Us</button>
-          <button type="button" onClick={() => setActivePolicy('terms')} style={{ background: 'none', border: 'none', color: '#059669', cursor: 'pointer', textDecoration: 'underline', fontSize: '11px', padding: 0 }}>Terms & Conditions</button>
-          <button type="button" onClick={() => setActivePolicy('refund')} style={{ background: 'none', border: 'none', color: '#059669', cursor: 'pointer', textDecoration: 'underline', fontSize: '11px', padding: 0 }}>Refund & Cancellation Policy</button>
-        </div>
-      </div>
-
     </div>
   );
 }
