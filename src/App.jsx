@@ -130,11 +130,12 @@ export default function App() {
 
   const [mrfDailyDryTons, setMrfDailyDryTons] = useState(15);
   const [mrfMaxCapacityTons, setMrfMaxCapacityTons] = useState(25);
+  
   const [mrfStreamsConfig, setMrfStreamsConfig] = useState(
-    DEFAULT_MRF_STREAMS.map(s => ({ ...s, active: s.isDefault, userWeight: s.defaultWeight }))
+    DEFAULT_MRF_STREAMS.map(s => ({ ...s, userWeight: s.defaultWeight }))
   );
   const [mixedStreamsConfig, setMixedStreamsConfig] = useState(
-    DEFAULT_MIXED_STREAMS.map(s => ({ ...s, active: s.isDefault, userWeight: s.defaultWeight }))
+    DEFAULT_MIXED_STREAMS.map(s => ({ ...s, userWeight: s.defaultWeight }))
   );
   
   const [startYear, setStartYear] = useState(2026);
@@ -151,9 +152,13 @@ export default function App() {
   const currentStateObj = STATES_LIST.find(s => s.nameEn === selectedState) || STATES_LIST[33];
   const currentRegionKey = currentStateObj.region;
   const parsedPerCapita = Number(perCapitaOption);
+  
+  // TPD Calculation for display
+  const calculatedTpdDisplay = ((Number(population) * parsedPerCapita) / 1000000).toFixed(2);
 
+  // Advanced Stream Configuration Logic
   const currentStreamConfig = facilityType === 'MIXED_PLANT' ? mixedStreamsConfig : mrfStreamsConfig;
-  const activeStreams = isAdvancedMode ? currentStreamConfig.filter(s => s.active) : currentStreamConfig.filter(s => s.isDefault);
+  const activeStreams = isAdvancedMode ? currentStreamConfig : currentStreamConfig.filter(s => s.isDefault);
   const totalPercentage = activeStreams.reduce((acc, s) => acc + Number(s.userWeight || 0), 0);
   const isValidTotal = totalPercentage === 100;
   
@@ -211,15 +216,16 @@ export default function App() {
 
   const pricing = getPricingDetails();
 
+  // Handlers for Custom Stream Fractions
   const updateStreamConfig = (id, field, value) => {
     const setConfig = facilityType === 'MIXED_PLANT' ? setMixedStreamsConfig : setMrfStreamsConfig;
     setConfig(prev => prev.map(s => {
       if (s.id === id) {
         if (field === 'userWeight') {
           let num = value === '' ? '' : Number(value);
-          if (num !== '') {
-            if (num < s.min) num = s.min;
-            if (num > s.max) num = s.max;
+          if (num !== '' && field === 'userWeight') {
+            if (num < (s.min || 0)) num = (s.min || 0);
+            if (num > (s.max || 100)) num = (s.max || 100);
           }
           return { ...s, [field]: num };
         }
@@ -227,6 +233,31 @@ export default function App() {
       }
       return s;
     }));
+  };
+
+  const addCustomStream = () => {
+    const newStream = { 
+      id: `custom_${Date.now()}`, 
+      label: '', 
+      defaultWeight: 0, 
+      min: 0, 
+      max: 100, 
+      isDefault: false, 
+      userWeight: 0 
+    };
+    if (facilityType === 'MIXED_PLANT') {
+      setMixedStreamsConfig([...mixedStreamsConfig, newStream]);
+    } else {
+      setMrfStreamsConfig([...mrfStreamsConfig, newStream]);
+    }
+  };
+
+  const removeCustomStream = (id) => {
+    if (facilityType === 'MIXED_PLANT') {
+      setMixedStreamsConfig(mixedStreamsConfig.filter(s => s.id !== id));
+    } else {
+      setMrfStreamsConfig(mrfStreamsConfig.filter(s => s.id !== id));
+    }
   };
 
   const handleGenerate = (e) => {
@@ -427,7 +458,6 @@ export default function App() {
                 : 'Try our new standalone Integrated App for complete resource recovery facilities.'}
             </p>
           </div>
-          {/* UPDATE THIS URL TO POINT TO YOUR NEW 3-IN-1 DEPLOYMENT */}
           <a href="https://your-3in1-app-link.com" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', padding: '8px 16px', background: '#166534', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Layers size={14} /> {lang === 'hi' ? '3-इन-1 ऐप पर जाएँ' : 'Open 3-in-1 Suite'} ↗
           </a>
@@ -483,6 +513,11 @@ export default function App() {
                         <option value="500">500 {lang === 'hi' ? 'ग्राम/दिन' : 'g/day'}</option>
                       </select>
                     </div>
+                    {/* NEW: TPD Live Calculator Display */}
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', background: '#ecfdf5', padding: '10px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                      <span style={{ fontSize: '11px', color: '#065f46', fontWeight: 'bold' }}>{lang === 'hi' ? 'कुल अनुमानित कचरा' : 'Calculated Waste'}</span>
+                      <span style={{ fontSize: '18px', color: '#047857', fontWeight: '900' }}>{calculatedTpdDisplay} TPD</span>
+                    </div>
                   </>
                 ) : (
                   <div>
@@ -509,24 +544,55 @@ export default function App() {
 
           {(facilityType === 'MRF' || facilityType === 'MIXED_PLANT') && (
             <div style={{ marginTop: '10px', background: isAdvancedMode ? '#fffbeb' : '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginBottom: '14px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}>
-                <input type="checkbox" checked={isAdvancedMode} onChange={(e) => setIsAdvancedMode(e.target.checked)} />
-                {lang === 'hi' ? 'एडवांस्ड स्ट्रीम सेटिंग और कस्टम (Custom) फ्रैक्शन चालू करें' : 'Enable Advanced Stream Configuration & Custom Fractions'}
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={isAdvancedMode} onChange={(e) => setIsAdvancedMode(e.target.checked)} />
+                  {lang === 'hi' ? 'एडवांस्ड स्ट्रीम सेटिंग और कस्टम (Custom) फ्रैक्शन चालू करें' : 'Enable Advanced Stream Configuration & Custom Fractions'}
+                </label>
+                
+                {/* NEW: Total Percentage Validator Display */}
+                {isAdvancedMode && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: isValidTotal ? '#166534' : '#dc2626', background: isValidTotal ? '#dcfce7' : '#fee2e2', padding: '4px 10px', borderRadius: '4px', border: `1px solid ${isValidTotal ? '#86efac' : '#fca5a5'}` }}>
+                      {lang === 'hi' ? 'कुल योग' : 'Total'}: {totalPercentage}%
+                    </span>
+                    {!isValidTotal && (
+                      <span style={{ fontSize: '11px', color: '#dc2626', fontWeight: 'bold' }}>({lang === 'hi' ? '100% होना चाहिए' : 'Must equal 100%'})</span>
+                    )}
+                  </div>
+                )}
+              </div>
 
               {isAdvancedMode && (
-                <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
-                  {currentStreamConfig.map(s => (
-                    <div key={s.id} style={{ background: '#fff', padding: '6px', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
-                      {s.id.startsWith('other_') ? (
-                        <input type="text" value={s.label} onChange={(e) => updateStreamConfig(s.id, 'label', e.target.value)} style={{ fontSize: '11px', fontWeight: 'bold', width: '100%', padding: '2px' }} placeholder={lang === 'hi' ? 'कस्टम नाम भरें' : 'Custom Fraction Name'} />
-                      ) : (
-                        <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{s.label}</span>
-                      )}
-                      <input type="number" value={s.userWeight} onChange={(e) => updateStreamConfig(s.id, 'userWeight', e.target.value)} style={{ ...inputStyle, marginTop: '2px', padding: '4px' }} />
-                    </div>
-                  ))}
-                </div>
+                <>
+                  <div style={{ marginTop: '14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                    {currentStreamConfig.map(s => (
+                      <div key={s.id} style={{ background: '#fff', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          {s.id.startsWith('other_') || s.id.startsWith('custom_') ? (
+                            <input type="text" value={s.label} onChange={(e) => updateStreamConfig(s.id, 'label', e.target.value)} style={{ fontSize: '11px', fontWeight: 'bold', width: '100%', padding: '4px', border: '1px solid #cbd5e1', borderRadius: '4px', boxSizing: 'border-box' }} placeholder={lang === 'hi' ? 'कस्टम नाम भरें' : 'Custom Fraction Name'} />
+                          ) : (
+                            <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{s.label}</span>
+                          )}
+                          {s.id.startsWith('custom_') && (
+                            <button type="button" onClick={() => removeCustomStream(s.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: '0 0 0 6px' }}><Trash2 size={15} /></button>
+                          )}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', marginTop: '6px' }}>
+                          <input type="number" value={s.userWeight} onChange={(e) => updateStreamConfig(s.id, 'userWeight', e.target.value)} style={{ ...inputStyle, marginTop: '0', padding: '6px' }} />
+                          <span style={{ marginLeft: '6px', fontSize: '13px', fontWeight: 'bold', color: '#64748b' }}>%</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* NEW: Add Custom Fraction Button */}
+                  <div style={{ marginTop: '12px' }}>
+                    <button type="button" onClick={addCustomStream} style={{ padding: '6px 12px', background: '#e2e8f0', color: '#334155', border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                      <Plus size={14} /> {lang === 'hi' ? 'नया कस्टम फ्रैक्शन जोड़ें' : 'Add Custom Fraction'}
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -552,7 +618,7 @@ export default function App() {
             </div>
           </div>
 
-          <button type="submit" disabled={generateDisabled} style={{ width: '100%', padding: '12px', background: generateDisabled ? '#94a3b8' : '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
+          <button type="submit" disabled={generateDisabled} style={{ width: '100%', padding: '12px', background: generateDisabled ? '#94a3b8' : '#059669', color: '#fff', border: 'none', borderRadius: '6px', cursor: generateDisabled ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
             {lang === 'hi' 
               ? `लॉग-बुक जनरेट करें (₹${pricing.total}) →` 
               : `Generate Logbook Dataset (₹${pricing.total}) →`}
