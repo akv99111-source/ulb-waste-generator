@@ -353,23 +353,23 @@ export default function App() {
           </div>
         </div>
 
-        {/* EXTERNAL LINK BANNER TO 3-IN-1 SUITE */}
-        <div style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', border: '2px solid #22c55e', padding: '14px 18px', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <div>
-            <span style={{ background: '#15803d', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <Sparkles size={12} /> {lang === 'hi' ? 'नया 3-इन-1 ऐप' : 'NEW 3-IN-1 SUITE'}
-            </span>
-            <h3 style={{ margin: '4px 0 2px 0', color: '#166534', fontSize: '15px', fontWeight: 'bold' }}>
-              {lang === 'hi' ? 'क्या आपको गेट, कम्पोस्ट और MRF की एक साथ जुड़ी हुई लॉग-बुक चाहिए?' : 'Need Interconnected Logbooks for Gate, Compost & MRF?'}
-            </h3>
-            <p style={{ margin: 0, color: '#15803d', fontSize: '12px' }}>
-              {lang === 'hi' ? 'संपूर्ण अपशिष्ट प्रबंधन (RRC) के लिए हमारा नया मल्टी-यूनिट ऐप आज़माएं।' : 'Try our synchronized Integrated Suite for complete resource recovery facilities.'}
-            </p>
-          </div>
-          <a href="https://all-in-one-swm-logbook.vercel.app/" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', padding: '8px 16px', background: '#166534', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Layers size={14} /> {lang === 'hi' ? '3-इन-1 ऐप पर जाएँ' : 'Open 3-in-1 Suite'} ↗
-          </a>
-        </div>
+       {/* EXTERNAL LINK BANNER TO 3-IN-1 SUITE */}
+<div style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', border: '2px solid #22c55e', padding: '14px 18px', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+  <div>
+    <span style={{ background: '#15803d', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+      <Sparkles size={12} /> {lang === 'hi' ? 'नया 3-इन-1 ऐप' : 'NEW 3-IN-1 SUITE'}
+    </span>
+    <h3 style={{ margin: '4px 0 2px 0', color: '#166534', fontSize: '15px', fontWeight: 'bold' }}>
+      {lang === 'hi' ? 'क्या आपको गेट, कम्पोस्ट और MRF की एक साथ जुड़ी हुई लॉग-बुक चाहिए?' : 'Need Interconnected Logbooks for Gate, Compost & MRF?'}
+    </h3>
+    <p style={{ margin: 0, color: '#15803d', fontSize: '12px' }}>
+      {lang === 'hi' ? 'संपूर्ण अपशिष्ट प्रबंधन (RRC) के लिए हमारा नया मल्टी-यूनिट ऐप आज़माएं।' : 'Try our synchronized Integrated Suite for complete resource recovery facilities.'}
+    </p>
+  </div>
+  <a href="https://all-in-one-swm-logbook.vercel.app/" style={{ textDecoration: 'none', padding: '8px 16px', background: '#166534', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+    <Layers size={14} /> {lang === 'hi' ? '3-इन-1 ऐप पर जाएँ' : 'Open 3-in-1 Suite'}
+  </a>
+</div>
 
         {/* FORM */}
         <form onSubmit={handleGenerate} style={{ background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '20px' }}>
