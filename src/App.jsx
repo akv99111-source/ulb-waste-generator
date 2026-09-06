@@ -671,8 +671,8 @@ export default function App() {
                 <div>
                   <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>Contact Us</h2>
                   <p style={{ fontSize: '13px' }}><strong>Organisation:</strong> Consilience Research Foundation</p>
-                  <p style={{ fontSize: '13px' }}><strong>Address:</strong> Arjunganj, Lucknow, Uttar Pradesh, India</p>
-                  <p style={{ fontSize: '13px' }}><strong>Email:</strong> support@consilience.res.in</p>
+                  <p style={{ fontSize: '13px' }}><strong>Address:</strong> Lucknow, Uttar Pradesh, India</p>
+                  <p style={{ fontSize: '13px' }}><strong>Email (for any query/feedback/support:</strong >crginfomail@gmail.com</p>
                 </div>
               )}
               {activePolicyModal === 'terms' && (
