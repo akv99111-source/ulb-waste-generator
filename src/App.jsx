@@ -385,6 +385,17 @@ export default function App() {
           </div>
         </div>
 
+        {/* CROSS-LINK BANNER (Added Back) */}
+        <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <div>
+            <h3 style={{ margin: 0, color: '#166534', fontSize: '14px' }}>{lang === 'hi' ? 'एकीकृत 3-इन-1 मास्टर सुइट चाहिए?' : 'Need the Integrated 3-in-1 Master Suite?'}</h3>
+            <p style={{ margin: 0, color: '#15803d', fontSize: '12px' }}>{lang === 'hi' ? 'सभी सुविधाओं (ULB + MRF + कम्पोस्ट) के लिए मास-बैलेंस लॉग-बुक बनाएं।' : 'Generate Mass-Balance connected logs for all your facilities (ULB+MRF+Compost) at once.'}</p>
+          </div>
+          <a href="https://all-in-one-swm-logbook.vercel.app/" style={{ textDecoration: 'none', padding: '8px 14px', background: '#166534', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <Zap size={14} /> Open 3-in-1 App
+          </a>
+        </div>
+
         {/* BILINGUAL USER GUIDE CONTAINER */}
         <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', padding: '16px', borderRadius: '8px', marginBottom: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid #cbd5e1', paddingBottom: '8px' }}>
