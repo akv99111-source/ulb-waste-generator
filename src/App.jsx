@@ -658,6 +658,34 @@ export default function App() {
           </div>
         )}
 
+      {/* ADD THIS RIGHT ABOVE YOUR <footer ...> */}
+        {/* SEO & ADSENSE CONTENT BLOCK - DO NOT REMOVE UNTIL APPROVED */}
+        <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '30px', color: '#334155', lineHeight: '1.6' }}>
+          <h2 style={{ fontSize: '18px', color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>About Solid Waste Management (SWM) Logbook Estimation</h2>
+          
+          <h3 style={{ fontSize: '15px', marginTop: '16px', color: '#0369a1' }}>The Importance of Daily Mass Balance in SWM</h3>
+          <p style={{ fontSize: '13px' }}>
+            Proper Solid Waste Management (SWM) requires meticulous daily tracking of incoming municipal solid waste (MSW). Urban Local Bodies (ULBs) and municipal corporations must maintain accurate logbooks to ensure compliance with the Solid Waste Management Rules, 2016 (India) and other global environmental standards. A mass balance approach ensures that total gate intake matches the processed outputs (segregated organics, recyclables, and inert rejects), preventing unaccounted waste dumping.
+          </p>
+
+          <h3 style={{ fontSize: '15px', marginTop: '16px', color: '#0369a1' }}>How This Estimation Tool Works</h3>
+          <p style={{ fontSize: '13px' }}>
+            This standalone logbook generator is a specialized calculator designed for environmental engineers, facility operators, and academic researchers. By inputting the baseline population or known daily TPD (Tons Per Day), the algorithm applies standard per-capita generation rates (e.g., 300g, 450g, 500g per person/day). It uses advanced deterministic variations to simulate natural daily fluctuations in waste collection, accounting for seasonal changes (monsoon moisture weight vs. dry summer yields).
+          </p>
+
+          <h3 style={{ fontSize: '15px', marginTop: '16px', color: '#0369a1' }}>Material Recovery Facility (MRF) Fractions</h3>
+          <p style={{ fontSize: '13px' }}>
+            Dry waste sorting sheds, or MRFs, require detailed fraction analysis. This tool allows operators to define custom stream percentages for High-Density Polyethylene (HDPE), Polyethylene Terephthalate (PET), Cardboard, Paper, and Refuse-Derived Fuel (RDF). The total fractions must always equal 100% to satisfy mass balance principles. Accurate MRF logging is critical for Extended Producer Responsibility (EPR) compliance and calculating circular economy metrics.
+          </p>
+
+          <h3 style={{ fontSize: '15px', marginTop: '16px', color: '#0369a1' }}>Frequently Asked Questions (FAQ)</h3>
+          <ul style={{ fontSize: '13px', paddingLeft: '20px' }}>
+            <li style={{ marginBottom: '8px' }}><strong>Is this data real?</strong> No, this tool generates statistically modeled estimation data for research, educational, and gap-analysis purposes. It is not a substitute for actual weighbridge data.</li>
+            <li style={{ marginBottom: '8px' }}><strong>Why do we need a daily logbook?</strong> Regulatory audits require daily logs to track the efficiency of composting pads, biomethanation units, and MRFs. It prevents "ghost data" and ensures facility operations are transparent.</li>
+            <li style={{ marginBottom: '8px' }}><strong>What is C&D Waste and Drain Silt?</strong> Construction and Demolition (C&D) waste and drain silt are heavy, non-combustible fractions that must be logged separately from standard domestic and commercial MSW to prevent mechanical damage to processing equipment like trommels.</li>
+          </ul>
+        </div>
+        {/* END OF SEO CONTENT BLOCK */}
         {/* COMPLIANCE FOOTER */}
         <footer style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #cbd5e1', textAlign: 'center', fontSize: '12px', color: '#64748b' }}>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap', marginBottom: '10px' }}>
