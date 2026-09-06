@@ -86,30 +86,26 @@ const inputStyle = { width: '100%', padding: '9px', borderRadius: '6px', border:
 
 export default function App() {
   const [lang, setLang] = useState('hi');
-  const [facilityType, setFacilityType] = useState('ULB'); // 'ULB', 'MRF', 'MIXED_PLANT'
+  const [facilityType, setFacilityType] = useState('ULB'); 
   const [selectedState, setSelectedState] = useState('Uttar Pradesh');
   const [name, setName] = useState('Nagar Palika Parishad');
   const [phone, setPhone] = useState('');
   
-  // ULB State
   const [ulbCalculationMode, setUlbCalculationMode] = useState('population');
   const [population, setPopulation] = useState(50000);
   const [perCapitaOption, setPerCapitaOption] = useState('450');
   const [actualAverageTpd, setActualAverageTpd] = useState(22.5);
   
-  // MRF / Mixed State
   const [mrfDailyDryTons, setMrfDailyDryTons] = useState(10);
   const [mrfMaxCapacityTons, setMrfMaxCapacityTons] = useState(15);
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [mrfStreamConfig, setMrfStreamConfig] = useState(DEFAULT_MRF_CONFIG);
   const [mixedStreamConfig, setMixedStreamConfig] = useState(DEFAULT_MIXED_CONFIG);
   
-  // Global Settings
   const [startYear, setStartYear] = useState(2026);
   const [selectedMonths, setSelectedMonths] = useState([1]);
   const [displayUnit, setDisplayUnit] = useState('Tons');
   
-  // App State
   const [generatedMonthlyData, setGeneratedMonthlyData] = useState(null);
   const [activeTabMonth, setActiveTabMonth] = useState(null);
   const [isPaid, setIsPaid] = useState(false);
@@ -212,16 +208,15 @@ export default function App() {
         let rowData = { date: dateStr, dayName, intake: dailyIntake };
 
         if (facilityType === 'ULB') {
-          const mswRatio = 0.85 + random() * 0.10; // 85-95% is MSW
-          const cndRatio = 0.02 + random() * 0.03; // 2-5% C&D
-          const drainRatio = 0.01 + random() * 0.02; // 1-3% Drain Silt
+          const mswRatio = 0.85 + random() * 0.10; 
+          const cndRatio = 0.02 + random() * 0.03; 
+          const drainRatio = 0.01 + random() * 0.02; 
 
           const domestic = Number((dailyIntake * mswRatio).toFixed(3));
           const commercial = Number((dailyIntake * (0.98 - mswRatio - cndRatio - drainRatio)).toFixed(3));
           const cnd = Number((dailyIntake * cndRatio).toFixed(3));
           const drain = Number((dailyIntake * drainRatio).toFixed(3));
 
-          // Ensuring perfect 100% balance
           rowData = { ...rowData, domestic, commercial, cnd, drain: Number((dailyIntake - domestic - commercial - cnd).toFixed(3)) };
         
         } else if (facilityType === 'MRF' || facilityType === 'MIXED_PLANT') {
@@ -286,7 +281,6 @@ export default function App() {
         body: JSON.stringify({ amount: pricing.total, customerName: name, customerPhone: phone })
       });
 
-      // Fix for Cashfree HTML error response
       const rawText = await res.text();
       let order;
       try {
@@ -378,6 +372,9 @@ export default function App() {
                 <Building2 size={22} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
                 {lang === 'hi' ? 'सिंगल-फैसिलिटी SWM लॉग-बुक टूल' : 'Standalone SWM Logbook Tool'}
               </h1>
+              <p style={{ fontSize: '12px', color: '#cbd5e1', margin: '0' }}>
+                {lang === 'hi' ? 'यह टूल केवल शोध, शिक्षा और अनुमान के उद्देश्यों के लिए है।' : 'This tool is strictly for research, education, and estimation purposes only.'}
+              </p>
             </div>
             <button type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#0f172a', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>
               <Globe size={15} style={{ verticalAlign: 'middle' }} /> {lang === 'hi' ? 'English' : 'हिंदी'}
@@ -385,13 +382,17 @@ export default function App() {
           </div>
         </div>
 
-        {/* CROSS-LINK BANNER (Added Back) */}
+        {/* CROSS-LINK BANNER */}
         <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
           <div>
-            <h3 style={{ margin: 0, color: '#166534', fontSize: '14px' }}>{lang === 'hi' ? 'एकीकृत 3-इन-1 मास्टर सुइट चाहिए?' : 'Need the Integrated 3-in-1 Master Suite?'}</h3>
-            <p style={{ margin: 0, color: '#15803d', fontSize: '12px' }}>{lang === 'hi' ? 'सभी सुविधाओं (ULB + MRF + कम्पोस्ट) के लिए मास-बैलेंस लॉग-बुक बनाएं।' : 'Generate Mass-Balance connected logs for all your facilities (ULB+MRF+Compost) at once.'}</p>
+            <h3 style={{ margin: 0, color: '#166534', fontSize: '14px' }}>
+              {lang === 'hi' ? 'एंड-टू-एंड मास-बैलेंस लॉग-बुक चाहिए?' : 'Need End-to-End Mass Balance Logbooks?'}
+            </h3>
+            <p style={{ margin: 0, color: '#15803d', fontSize: '12px' }}>
+              {lang === 'hi' ? 'एक ही बार में गेट कलेक्शन (ULB) से लेकर पूरी प्लांट प्रोसेसिंग (MRF, कम्पोस्ट) तक के सभी डेटासेट जनरेट करें।' : 'Generate fully connected, multi-sheet logs from initial ULB gate collection to complete plant-based processing (MRF, Compost, etc.) in one go.'}
+            </p>
           </div>
-          <a href="https://all-in-one-swm-logbook.vercel.app/" style={{ textDecoration: 'none', padding: '8px 14px', background: '#166534', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <a href="https://all-in-one-swm-logbook.vercel.app/" style={{ textDecoration: 'none', padding: '8px 14px', background: '#166534', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
             <Zap size={14} /> Open 3-in-1 App
           </a>
         </div>
