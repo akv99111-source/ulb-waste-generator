@@ -40,7 +40,7 @@ const STATES_LIST = [
   { nameEn: 'Punjab', nameHi: 'पंजाब' },
   { nameEn: 'Rajasthan', nameHi: 'राजस्थान' },
   { nameEn: 'Tamil Nadu', nameHi: 'तमिलनाडु' },
-  { nameEn: 'Telangana', name तेलंगाना' },
+  { nameEn: 'Telangana', nameHi: 'तेलंगाना' },
   { nameEn: 'Uttar Pradesh', nameHi: 'उत्तर प्रदेश' },
   { nameEn: 'Uttarakhand', nameHi: 'उत्तराखंड' },
   { nameEn: 'West Bengal', nameHi: 'पश्चिम बंगाल' },
