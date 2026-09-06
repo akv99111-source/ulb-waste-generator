@@ -47,6 +47,20 @@ const STATES_LIST = [
   { nameEn: 'Other / Pan-India Standard', nameHi: 'अन्य / राष्ट्रीय मानक' }
 ];
 
+const DEFAULT_MRF_CONFIG = [
+  { id: 'pet', label: 'PET Bottles', userWeight: 25 },
+  { id: 'hdpe', label: 'HDPE / Plastics', userWeight: 20 },
+  { id: 'paper', label: 'Cardboard & Paper', userWeight: 25 },
+  { id: 'rdf', label: 'Combustible RDF', userWeight: 20 },
+  { id: 'rejects', label: 'Inert Rejects', userWeight: 10 }
+];
+
+const DEFAULT_MIXED_CONFIG = [
+  { id: 'fines', label: 'Organic Fines', userWeight: 45 },
+  { id: 'coarse_rdf', label: 'Coarse RDF', userWeight: 35 },
+  { id: 'heavy_inerts', label: 'Heavy Inerts', userWeight: 20 }
+];
+
 const cyrb128 = (str) => {
   let h1 = 1779033703, h2 = 3144134277, h3 = 1013904242, h4 = 2773480762;
   for (let i = 0; i < str.length; i++) {
@@ -72,174 +86,62 @@ const inputStyle = { width: '100%', padding: '9px', borderRadius: '6px', border:
 
 export default function App() {
   const [lang, setLang] = useState('hi');
+  const [facilityType, setFacilityType] = useState('ULB'); // 'ULB', 'MRF', 'MIXED_PLANT'
   const [selectedState, setSelectedState] = useState('Uttar Pradesh');
   const [name, setName] = useState('Nagar Palika Parishad');
   const [phone, setPhone] = useState('');
   
+  // ULB State
   const [ulbCalculationMode, setUlbCalculationMode] = useState('population');
   const [population, setPopulation] = useState(50000);
   const [perCapitaOption, setPerCapitaOption] = useState('450');
   const [actualAverageTpd, setActualAverageTpd] = useState(22.5);
   
-  const [segregationRate, setSegregationRate] = useState(80);
-
-  // Dynamic Facilities with Nested MRF Fractions
-  const [facilities, setFacilities] = useState([
-    { id: 'f1', name: 'Windrow Compost Pad', type: 'wet_compost', designCapacity: 12, avgProcessing: 10.8 },
-    { 
-      id: 'f2', name: 'Dry MRF Sorting Shed', type: 'dry_mrf', designCapacity: 8, avgProcessing: 7.2,
-      mrfFractions: [
-        { id: 'm1', name: 'PET Bottles', percentage: 25 },
-        { id: 'm2', name: 'HDPE / Rigid Plastics', percentage: 20 },
-        { id: 'm3', name: 'Cardboard & Paper', percentage: 25 },
-        { id: 'm4', name: 'Combustible RDF', percentage: 20 },
-        { id: 'm5', name: 'Inert Rejects', percentage: 10 }
-      ]
-    },
-    { id: 'f3', name: 'Trommel Screening Unit', type: 'mixed_trommel', designCapacity: 6, avgProcessing: 4.5 }
-  ]);
+  // MRF / Mixed State
+  const [mrfDailyDryTons, setMrfDailyDryTons] = useState(10);
+  const [mrfMaxCapacityTons, setMrfMaxCapacityTons] = useState(15);
+  const [isAdvancedMode, setIsAdvancedMode] = useState(false);
+  const [mrfStreamConfig, setMrfStreamConfig] = useState(DEFAULT_MRF_CONFIG);
+  const [mixedStreamConfig, setMixedStreamConfig] = useState(DEFAULT_MIXED_CONFIG);
   
+  // Global Settings
   const [startYear, setStartYear] = useState(2026);
   const [selectedMonths, setSelectedMonths] = useState([1]);
   const [displayUnit, setDisplayUnit] = useState('Tons');
   
+  // App State
   const [generatedMonthlyData, setGeneratedMonthlyData] = useState(null);
   const [activeTabMonth, setActiveTabMonth] = useState(null);
-  const [activeAssetView, setActiveAssetView] = useState('gate');
   const [isPaid, setIsPaid] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [activePolicyModal, setActivePolicyModal] = useState(null);
 
   const resultsRef = useRef(null);
+
+  const currentStreamConfig = facilityType === 'MRF' ? mrfStreamConfig : mixedStreamConfig;
+  const setStreamConfig = facilityType === 'MRF' ? setMrfStreamConfig : setMixedStreamConfig;
+
+  const totalPercentage = currentStreamConfig.reduce((sum, item) => sum + (Number(item.userWeight) || 0), 0);
+  const isValidTotal = totalPercentage === 100;
+  const generateDisabled = isAdvancedMode && !isValidTotal;
+
   const parsedPerCapita = Number(perCapitaOption);
-  
-  // CORE DUAL-STREAM MASS BALANCE CALCULATIONS
-  const targetTotalTpd = ulbCalculationMode === 'population' 
-    ? Number(((Number(population) * parsedPerCapita) / 1000000).toFixed(2))
-    : Number(Number(actualAverageTpd || 0).toFixed(2));
+  const calculatedTpdDisplay = ((Number(population) * parsedPerCapita) / 1000000).toFixed(2);
+  const targetTotalTpd = ulbCalculationMode === 'population' ? Number(calculatedTpdDisplay) : Number(actualAverageTpd || 0);
 
-  const targetSegregatedTpd = Number((targetTotalTpd * (segregationRate / 100)).toFixed(2));
-  const targetMixedTpd = Number((targetTotalTpd - targetSegregatedTpd).toFixed(2));
-
-  const allocatedMixed = Number(facilities.filter(f => f.type === 'mixed_trommel').reduce((acc, f) => acc + Number(f.avgProcessing || 0), 0).toFixed(2));
-  const allocatedSegregated = Number(facilities.filter(f => f.type !== 'mixed_trommel').reduce((acc, f) => acc + Number(f.avgProcessing || 0), 0).toFixed(2));
-
-  const isMixedBalanced = Math.abs(targetMixedTpd - allocatedMixed) <= 0.02;
-  const isSegBalanced = Math.abs(targetSegregatedTpd - allocatedSegregated) <= 0.02;
-  const isMassBalanced = isMixedBalanced && isSegBalanced;
-
-  // MRF Fractions 100% Validation
-  const invalidMrfs = facilities.filter(f => {
-    if (f.type !== 'dry_mrf') return false;
-    const totalPct = (f.mrfFractions || []).reduce((sum, frac) => sum + Number(frac.percentage || 0), 0);
-    return totalPct !== 100;
-  });
-  
-  const isMrfBalanced = invalidMrfs.length === 0;
-  const isFullyValidated = isMassBalanced && isMrfBalanced;
-
-  let validationMsg = "✓ Dual-Stream Mass Balance 100% Validated";
-  if (!isSegBalanced) validationMsg = `⚠️ Segregated Imbalance (Target ${targetSegregatedTpd} vs Allocated ${allocatedSegregated})`;
-  else if (!isMixedBalanced) validationMsg = `⚠️ Mixed Imbalance (Target ${targetMixedTpd} vs Allocated ${allocatedMixed})`;
-  else if (!isMrfBalanced) validationMsg = `⚠️ MRF Fractions must equal 100% (${invalidMrfs.map(f => f.name).join(', ')})`;
-
-  // Facility Management Functions
-  const addFacility = () => {
-    setFacilities([
-      ...facilities,
-      { 
-        id: `proc_${Date.now()}`, 
-        name: `New Processing Facility`, 
-        type: 'wet_compost', 
-        designCapacity: 5, 
-        avgProcessing: 0,
-        mrfFractions: [
-          { id: `frac_${Date.now()}_1`, name: 'Recyclables', percentage: 60 },
-          { id: `frac_${Date.now()}_2`, name: 'RDF', percentage: 30 },
-          { id: `frac_${Date.now()}_3`, name: 'Inerts', percentage: 10 }
-        ]
-      }
-    ]);
+  const updateStreamConfig = (id, field, value) => {
+    setStreamConfig(currentStreamConfig.map(s => s.id === id ? { ...s, [field]: field === 'userWeight' ? Number(value) : value } : s));
   };
 
-  const removeFacility = (id) => {
-    if (facilities.length > 1) setFacilities(facilities.filter(f => f.id !== id));
+  const addCustomStream = () => {
+    setStreamConfig([...currentStreamConfig, { id: `custom_${Date.now()}`, label: 'New Fraction', userWeight: 0 }]);
   };
 
-  const updateFacility = (id, field, value) => {
-    setFacilities(facilities.map(f => f.id === id ? { ...f, [field]: value } : f));
+  const removeCustomStream = (id) => {
+    setStreamConfig(currentStreamConfig.filter(s => s.id !== id));
   };
 
-  // MRF Fraction Management
-  const addMrfFraction = (facilityId) => {
-    setFacilities(facilities.map(f => {
-      if (f.id === facilityId) {
-        const fractions = f.mrfFractions || [];
-        return {
-          ...f,
-          mrfFractions: [...fractions, { id: `frac_${Date.now()}`, name: `New Fraction`, percentage: 10 }]
-        };
-      }
-      return f;
-    }));
-  };
-
-  const removeMrfFraction = (facilityId, fractionId) => {
-    setFacilities(facilities.map(f => {
-      if (f.id === facilityId) {
-        return { ...f, mrfFractions: f.mrfFractions.filter(frac => frac.id !== fractionId) };
-      }
-      return f;
-    }));
-  };
-
-  const updateMrfFraction = (facilityId, fractionId, field, value) => {
-    setFacilities(facilities.map(f => {
-      if (f.id === facilityId) {
-        return {
-          ...f,
-          mrfFractions: f.mrfFractions.map(frac => frac.id === fractionId ? { ...frac, [field]: value } : frac)
-        };
-      }
-      return f;
-    }));
-  };
-
-  const autoBalanceAllocation = () => {
-    const trommels = facilities.filter(f => f.type === 'mixed_trommel');
-    const segregated = facilities.filter(f => f.type !== 'mixed_trommel');
-    
-    const totalTrommelCap = trommels.reduce((sum, f) => sum + (Number(f.designCapacity)||1), 0);
-    const totalSegCap = segregated.reduce((sum, f) => sum + (Number(f.designCapacity)||1), 0);
-
-    let updated = facilities.map(f => {
-      if (f.type === 'mixed_trommel') {
-        if (totalTrommelCap === 0) return { ...f, avgProcessing: 0 };
-        const share = Number(((Number(f.designCapacity)||1) / totalTrommelCap) * targetMixedTpd).toFixed(2);
-        return { ...f, avgProcessing: share };
-      } else {
-        if (totalSegCap === 0) return { ...f, avgProcessing: 0 };
-        const share = Number(((Number(f.designCapacity)||1) / totalSegCap) * targetSegregatedTpd).toFixed(2);
-        return { ...f, avgProcessing: share };
-      }
-    });
-
-    const sumTrommel = updated.filter(f => f.type === 'mixed_trommel').reduce((s,f) => s + f.avgProcessing, 0);
-    if (trommels.length > 0 && Math.abs(sumTrommel - targetMixedTpd) > 0.001) {
-       const lastT = updated.findLast(f => f.type === 'mixed_trommel');
-       lastT.avgProcessing = Number((lastT.avgProcessing + (targetMixedTpd - sumTrommel)).toFixed(2));
-    }
-
-    const sumSeg = updated.filter(f => f.type !== 'mixed_trommel').reduce((s,f) => s + f.avgProcessing, 0);
-    if (segregated.length > 0 && Math.abs(sumSeg - targetSegregatedTpd) > 0.001) {
-       const lastS = updated.findLast(f => f.type !== 'mixed_trommel');
-       lastS.avgProcessing = Number((lastS.avgProcessing + (targetSegregatedTpd - sumSeg)).toFixed(2));
-    }
-
-    setFacilities(updated);
-  };
-
-  const getSessionKey = () => `crf_paid_INT_v5_${name.trim().toLowerCase().replace(/\s+/g, '_')}_${selectedMonths.join('_')}_${startYear}`;
+  const getSessionKey = () => `crf_paid_standalone_${facilityType}_${name.trim().toLowerCase().replace(/\s+/g, '_')}_${selectedMonths.join('_')}_${startYear}`;
 
   useEffect(() => {
     const rawData = localStorage.getItem(getSessionKey());
@@ -254,7 +156,7 @@ export default function App() {
       }
     }
     setIsPaid(false);
-  }, [name, selectedMonths, startYear]);
+  }, [name, selectedMonths, startYear, facilityType]);
 
   const toggleMonth = (mId) => {
     if (selectedMonths.includes(mId)) {
@@ -268,7 +170,10 @@ export default function App() {
     const count = selectedMonths.length;
     const freeMonths = Math.floor(count / 6);
     const billableMonths = count - freeMonths;
-    const baseRate = 500;
+    let baseRate = 100;
+    if (facilityType === 'MRF') baseRate = 150;
+    if (facilityType === 'MIXED_PLANT') baseRate = 200;
+    
     const baseTotal = billableMonths * baseRate;
     const finalTotalWithCharges = Math.round(baseTotal / (1 - 0.0236));
     return { count, freeMonths, billableMonths, baseTotal, total: finalTotalWithCharges };
@@ -278,8 +183,8 @@ export default function App() {
 
   const handleGenerate = (e) => {
     e.preventDefault();
-    if (!isFullyValidated) {
-      alert(`Validation Error: ${validationMsg}\n\nPlease fix the errors before generating the dataset.`);
+    if (isAdvancedMode && !isValidTotal) {
+      alert(`Fractions must equal 100%. Currently at ${totalPercentage}%.`);
       return;
     }
 
@@ -287,20 +192,13 @@ export default function App() {
 
     selectedMonths.forEach((m) => {
       const days = new Date(startYear, m, 0).getDate();
-      const seedString = `INTEGRATED-MASS-BALANCE-V7-${selectedState}-${name}-${startYear}-${m}-${targetTotalTpd}-${segregationRate}`;
+      const baseVal = facilityType === 'ULB' ? targetTotalTpd : Number(mrfDailyDryTons || 10);
+      const seedString = `STANDALONE-V2-${facilityType}-${selectedState}-${name}-${startYear}-${m}-${baseVal}`;
       const random = mulberry32(cyrb128(seedString));
       
-      // SEASONAL VARIATION LOGIC
-      let seasonalGateMultiplier = 1.0;
-      let seasonalCompostBaseYield = 0.18;
-      
-      if ([7, 8, 9].includes(m)) {
-        seasonalGateMultiplier = 1.05; // Monsoon: ~5% heavier due to wet waste
-        seasonalCompostBaseYield = 0.16; // Monsoon: Lower dry compost yield from heavy wet feed
-      } else if ([4, 5, 6].includes(m)) {
-        seasonalGateMultiplier = 0.95; // Summer: ~5% lighter due to dryness
-        seasonalCompostBaseYield = 0.20; // Summer: Higher efficiency
-      }
+      let seasonalMultiplier = 1.0;
+      if ([7, 8, 9].includes(m)) seasonalMultiplier = 1.05; 
+      else if ([4, 5, 6].includes(m)) seasonalMultiplier = 0.95; 
 
       let logs = [];
 
@@ -308,98 +206,42 @@ export default function App() {
         const dateStr = `${startYear}-${String(m).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const dayName = new Date(startYear, m - 1, day).toLocaleDateString('en-US', { weekday: 'short' });
 
-        // Apply Natural Daily Noise + Seasonal Modifier to Gate Intake
-        let dailyNoise = 0.95 + random() * 0.10;
-        const dailyGateTotal = Number((targetTotalTpd * dailyNoise * seasonalGateMultiplier).toFixed(3));
+        let noise = 0.95 + random() * 0.10;
+        const dailyIntake = Number((baseVal * noise * seasonalMultiplier).toFixed(3));
         
-        const dailySegregated = Number((dailyGateTotal * (segregationRate / 100)).toFixed(3));
-        const dailyMixed = Number((dailyGateTotal - dailySegregated).toFixed(3));
+        let rowData = { date: dateStr, dayName, intake: dailyIntake };
 
-        let facilityBreakdown = {};
-        facilities.forEach((f) => {
-          let fIntake = 0;
-          let outputs = {};
+        if (facilityType === 'ULB') {
+          const mswRatio = 0.85 + random() * 0.10; // 85-95% is MSW
+          const cndRatio = 0.02 + random() * 0.03; // 2-5% C&D
+          const drainRatio = 0.01 + random() * 0.02; // 1-3% Drain Silt
 
-          if (f.type === 'mixed_trommel') {
-            const ratio = allocatedMixed > 0 ? f.avgProcessing / allocatedMixed : 0;
-            fIntake = Number((dailyMixed * ratio).toFixed(3));
-            
-            // Fines and RDF natural noise, remaining balance to inerts
-            const finesNoise = 0.85 + random() * 0.30;
-            const rdfNoise = 0.85 + random() * 0.30;
-            const organicFines = Number((fIntake * 0.45 * finesNoise).toFixed(3));
-            const coarseRdf = Number((fIntake * 0.35 * rdfNoise).toFixed(3));
-            const heavyInerts = Number(Math.max(0, fIntake - organicFines - coarseRdf).toFixed(3));
+          const domestic = Number((dailyIntake * mswRatio).toFixed(3));
+          const commercial = Number((dailyIntake * (0.98 - mswRatio - cndRatio - drainRatio)).toFixed(3));
+          const cnd = Number((dailyIntake * cndRatio).toFixed(3));
+          const drain = Number((dailyIntake * drainRatio).toFixed(3));
 
-            outputs = { intake: fIntake, organicFines, coarseRdf, heavyInerts };
-
-          } else {
-            const ratio = allocatedSegregated > 0 ? f.avgProcessing / allocatedSegregated : 0;
-            fIntake = Number((dailySegregated * ratio).toFixed(3));
-            
-            if (f.type === 'wet_compost' || f.type === 'vermicompost') {
-              const yieldNoise = 0.85 + random() * 0.30;
-              const rejectNoise = 0.80 + random() * 0.40;
-              // Enzyme dose increases slightly during monsoon
-              const enzymeMult = [7,8,9].includes(m) ? 1.2 : 1.0; 
-              
-              outputs = {
-                intake: fIntake,
-                enzyme: Number((fIntake * 2.5 * enzymeMult * (0.9 + random() * 0.2)).toFixed(2)),
-                activePileNo: `Pile-${((day - 1) % 12) + 1}`,
-                compostYield: Number((fIntake * seasonalCompostBaseYield * yieldNoise).toFixed(3)),
-                rejects: Number((fIntake * 0.05 * rejectNoise).toFixed(3))
-              };
-            } else if (f.type === 'dry_mrf') {
-              let fractionBreakdown = {};
-              const fractions = f.mrfFractions || [];
-              const totalPct = fractions.reduce((s, frac) => s + Number(frac.percentage || 0), 0) || 100;
-              
-              let accumulatedWeight = 0;
-              fractions.forEach((frac, index) => {
-                if (index === fractions.length - 1) {
-                  // Final fraction perfectly balances to 100% of input
-                  fractionBreakdown[frac.id] = Number(Math.max(0, fIntake - accumulatedWeight).toFixed(3));
-                } else {
-                  const fracNoise = 0.85 + random() * 0.30;
-                  const noisyWeight = Number((fIntake * (Number(frac.percentage || 0) / totalPct) * fracNoise).toFixed(3));
-                  fractionBreakdown[frac.id] = noisyWeight;
-                  accumulatedWeight += noisyWeight;
-                }
-              });
-
-              outputs = { intake: fIntake, fractions: fractionBreakdown };
-
-            } else if (f.type === 'biomethanation') {
-              outputs = {
-                intake: fIntake,
-                digesterPressure: Number((1.2 + random() * 0.3).toFixed(2)),
-                biogasGenerated: Number((fIntake * 65 * (0.9 + random() * 0.2)).toFixed(1)),
-                digestate: Number((fIntake * 0.25 * (0.85 + random() * 0.30)).toFixed(3))
-              };
+          // Ensuring perfect 100% balance
+          rowData = { ...rowData, domestic, commercial, cnd, drain: Number((dailyIntake - domestic - commercial - cnd).toFixed(3)) };
+        
+        } else if (facilityType === 'MRF' || facilityType === 'MIXED_PLANT') {
+          let accumulated = 0;
+          let breakdown = {};
+          
+          currentStreamConfig.forEach((frac, index) => {
+            if (index === currentStreamConfig.length - 1) {
+              breakdown[frac.id] = Number(Math.max(0, dailyIntake - accumulated).toFixed(3));
             } else {
-              const dispatchNoise = 0.80 + random() * 0.40;
-              const dispatchedTsdf = Number((fIntake * 0.10 * dispatchNoise).toFixed(3));
-              outputs = {
-                intake: fIntake,
-                safeStorage: Number(Math.max(0, fIntake - dispatchedTsdf).toFixed(3)),
-                manifestNo: `TSDF-2026-${String(day).padStart(3, '0')}`,
-                dispatchedTsdf
-              };
+              const fracNoise = 0.85 + random() * 0.30;
+              const noisyWeight = Number((dailyIntake * (frac.userWeight / 100) * fracNoise).toFixed(3));
+              breakdown[frac.id] = noisyWeight;
+              accumulated += noisyWeight;
             }
-          }
+          });
+          rowData.fractions = breakdown;
+        }
 
-          facilityBreakdown[f.id] = outputs;
-        });
-
-        logs.push({
-          date: dateStr,
-          dayName,
-          totalIntake: dailyGateTotal,
-          dailySegregated,
-          dailyMixed,
-          facilityBreakdown
-        });
+        logs.push(rowData);
       }
       monthlyDataMap[m] = logs;
     });
@@ -416,7 +258,6 @@ export default function App() {
 
     setGeneratedMonthlyData(monthlyDataMap);
     setActiveTabMonth(selectedMonths[0]);
-    setActiveAssetView('gate');
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
@@ -438,16 +279,25 @@ export default function App() {
     }
 
     try {
+      const isProd = import.meta.env.VITE_CASHFREE_MODE === 'production';
       const res = await fetch('/api/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount: pricing.total, customerName: name, customerPhone: phone })
       });
 
-      const order = await res.json();
+      // Fix for Cashfree HTML error response
+      const rawText = await res.text();
+      let order;
+      try {
+        order = JSON.parse(rawText);
+      } catch (err) {
+        throw new Error(`Server returned non-JSON response. Check Vercel Logs. Response preview: ${rawText.substring(0, 50)}`);
+      }
+
       if (!order.payment_session_id) throw new Error(order.message || 'Failed to initialize payment session.');
 
-      const cashfree = window.Cashfree({ mode: import.meta.env.VITE_CASHFREE_MODE || 'production' });
+      const cashfree = window.Cashfree({ mode: isProd ? 'production' : 'sandbox' });
 
       cashfree.checkout({
         paymentSessionId: order.payment_session_id,
@@ -478,79 +328,30 @@ export default function App() {
     try {
       const u = displayUnit === 'kg' ? 'kg' : 'Tons';
 
-      // Iterate through each selected month and download a separate file
       selectedMonths.forEach((mId) => {
         const wb = XLSX.utils.book_new();
         const monthData = MONTHS.find(m => m.id === mId);
         const monthName = monthData?.shortEn || `M${mId}`;
         const fullMonthName = monthData?.fullEn || `Month${mId}`;
 
-        // 1. Master Gate Intake Sheet
-        const gateHeaders = ["Date", "Day", `Total Gate Intake (${u})`, `Segregated Stream (${u})`, `Mixed Stream (${u})`, ...facilities.map(f => `${f.name} Allocated (${u})`)];
-        const gateRows = generatedMonthlyData[mId].map(r => [
-          r.date, r.dayName, formatVal(r.totalIntake), formatVal(r.dailySegregated), formatVal(r.dailyMixed),
-          ...facilities.map(f => formatVal(r.facilityBreakdown[f.id]?.intake))
-        ]);
-        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([gateHeaders, ...gateRows]), `${monthName}_GateIntake`);
+        let headers = [];
+        let rows = [];
 
-        // 2. Stream-Specific Detailed Logbooks
-        facilities.forEach((f, idx) => {
-          let headers = [];
-          let rows = [];
+        if (facilityType === 'ULB') {
+          headers = ["Date", "Day", `Total Collection (${u})`, `Domestic Waste (${u})`, `Commercial Waste (${u})`, `C&D Waste (${u})`, `Drain Silt (${u})`];
+          rows = generatedMonthlyData[mId].map(r => [
+            r.date, r.dayName, formatVal(r.intake), formatVal(r.domestic), formatVal(r.commercial), formatVal(r.cnd), formatVal(r.drain)
+          ]);
+        } else {
+          headers = ["Date", "Day", `Total Intake (${u})`, ...currentStreamConfig.map(frac => `${frac.label} (${frac.userWeight}%)`)];
+          rows = generatedMonthlyData[mId].map(r => [
+            r.date, r.dayName, formatVal(r.intake), ...currentStreamConfig.map(frac => formatVal(r.fractions[frac.id]))
+          ]);
+        }
 
-          if (f.type === 'wet_compost' || f.type === 'vermicompost') {
-            headers = ["Date", "Day", `Organic Feed (${u})`, "Enzyme Dose (L)", "Active Pile", `Compost Yield (${u})`, `Inert Rejects (${u})`];
-            rows = generatedMonthlyData[mId].map(r => [
-              r.date, r.dayName,
-              formatVal(r.facilityBreakdown[f.id]?.intake),
-              r.facilityBreakdown[f.id]?.enzyme,
-              r.facilityBreakdown[f.id]?.activePileNo,
-              formatVal(r.facilityBreakdown[f.id]?.compostYield),
-              formatVal(r.facilityBreakdown[f.id]?.rejects)
-            ]);
-          } else if (f.type === 'dry_mrf') {
-            const fractions = f.mrfFractions || [];
-            headers = ["Date", "Day", `Dry Feed (${u})`, ...fractions.map(frac => `${frac.name} (${frac.percentage}%)`)];
-            rows = generatedMonthlyData[mId].map(r => [
-              r.date, r.dayName,
-              formatVal(r.facilityBreakdown[f.id]?.intake),
-              ...fractions.map(frac => formatVal(r.facilityBreakdown[f.id]?.fractions[frac.id]))
-            ]);
-          } else if (f.type === 'mixed_trommel') {
-            headers = ["Date", "Day", `Mixed Feed (${u})`, `Organic Fines (${u})`, `Coarse Screen RDF (${u})`, `Heavy Inerts (${u})`];
-            rows = generatedMonthlyData[mId].map(r => [
-              r.date, r.dayName,
-              formatVal(r.facilityBreakdown[f.id]?.intake),
-              formatVal(r.facilityBreakdown[f.id]?.organicFines),
-              formatVal(r.facilityBreakdown[f.id]?.coarseRdf),
-              formatVal(r.facilityBreakdown[f.id]?.heavyInerts)
-            ]);
-          } else if (f.type === 'biomethanation') {
-            headers = ["Date", "Day", `Organic Feed (${u})`, "Pressure (bar)", "Biogas Generated (m³)", `Bio-Digestate (${u})`];
-            rows = generatedMonthlyData[mId].map(r => [
-              r.date, r.dayName,
-              formatVal(r.facilityBreakdown[f.id]?.intake),
-              r.facilityBreakdown[f.id]?.digesterPressure,
-              r.facilityBreakdown[f.id]?.biogasGenerated,
-              formatVal(r.facilityBreakdown[f.id]?.digestate)
-            ]);
-          } else {
-            headers = ["Date", "Day", `Daily Intake (${u})`, `Safe Stored (${u})`, "Manifest ID", `TSDF Transfer (${u})`];
-            rows = generatedMonthlyData[mId].map(r => [
-              r.date, r.dayName,
-              formatVal(r.facilityBreakdown[f.id]?.intake),
-              formatVal(r.facilityBreakdown[f.id]?.safeStorage),
-              r.facilityBreakdown[f.id]?.manifestNo,
-              formatVal(r.facilityBreakdown[f.id]?.dispatchedTsdf)
-            ]);
-          }
-
-          const safeSheetName = `${monthName}_F${idx + 1}_${f.name.replace(/[^a-zA-Z0-9]/g, '')}`.substring(0, 31);
-          XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, ...rows]), safeSheetName);
-        });
-
-        // Save a separate file for this specific month
-        const safeFileName = `Integrated_Master_Suite_${name.replace(/\s+/g, '_')}_${fullMonthName}_${startYear}.xlsx`;
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([headers, ...rows]), `${monthName}_Logbook`);
+        
+        const safeFileName = `Standalone_${facilityType}_Logbook_${name.replace(/\s+/g, '_')}_${fullMonthName}_${startYear}.xlsx`;
         XLSX.writeFile(wb, safeFileName);
       });
 
@@ -560,8 +361,6 @@ export default function App() {
   };
 
   const activeRows = generatedMonthlyData?.[activeTabMonth] || [];
-  
-  // STRICT 5-DAY PREVIEW LOCK FOR UNPAID SESSIONS
   const visibleRows = isPaid ? activeRows : activeRows.slice(0, 5);
 
   return (
@@ -569,32 +368,21 @@ export default function App() {
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
         
         {/* HEADER */}
-        <div style={{ background: 'linear-gradient(135deg, #064e3b 0%, #047857 100%)', color: '#fff', padding: '20px', borderRadius: '8px', marginBottom: '16px' }}>
+        <div style={{ background: 'linear-gradient(135deg, #0f172a 0%, #334155 100%)', color: '#fff', padding: '20px', borderRadius: '8px', marginBottom: '16px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
             <div>
               <span style={{ background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <ShieldCheck size={12} /> MASS-BALANCE SWM ESTIMATION SUITE
+                <ShieldCheck size={12} /> STANDALONE LOGBOOK GENERATOR
               </span>
               <h1 style={{ fontSize: '22px', margin: '6px 0 2px 0', fontWeight: '800' }}>
                 <Building2 size={22} style={{ verticalAlign: 'middle', marginRight: '6px' }} />
-                {lang === 'hi' ? 'एकीकृत 3-इन-1 मास्टर लॉग-बुक सुइट' : 'Integrated 3-in-1 Master Logbook Suite'}
+                {lang === 'hi' ? 'सिंगल-फैसिलिटी SWM लॉग-बुक टूल' : 'Standalone SWM Logbook Tool'}
               </h1>
             </div>
-            <button type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#047857', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>
+            <button type="button" onClick={() => setLang(lang === 'hi' ? 'en' : 'hi')} style={{ padding: '6px 12px', background: '#fff', color: '#0f172a', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>
               <Globe size={15} style={{ verticalAlign: 'middle' }} /> {lang === 'hi' ? 'English' : 'हिंदी'}
             </button>
           </div>
-        </div>
-
-        {/* CROSS-LINK BANNER */}
-        <div style={{ background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '12px 16px', borderRadius: '8px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-          <div>
-            <h3 style={{ margin: 0, color: '#334155', fontSize: '14px' }}>{lang === 'hi' ? 'सिंगल-फैसिलिटी लॉग-बुक चाहिए?' : 'Need Single-Facility Logbooks?'}</h3>
-            <p style={{ margin: 0, color: '#64748b', fontSize: '12px' }}>{lang === 'hi' ? 'केवल ₹100/माह में साधारण ULB/MRF जनरेटर खोलें।' : 'Use our standalone ULB, MRF, or Mixed waste tool starting at ₹100/mo.'}</p>
-          </div>
-          <a href="https://ulb-waste-generator.vercel.app/" style={{ textDecoration: 'none', padding: '8px 14px', background: '#334155', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <ArrowLeft size={14} /> Open Standalone App
-          </a>
         </div>
 
         {/* BILINGUAL USER GUIDE CONTAINER */}
@@ -614,12 +402,11 @@ export default function App() {
                 इस टूल का उपयोग करके 30-दिवसीय ऑडिट-रेडी SWM एक्सेल लॉग-बुक कैसे बनाएं:
               </p>
               <ol style={{ margin: 0, paddingLeft: '20px' }}>
-                <li style={{ marginBottom: '6px' }}><strong>बुनियादी विवरण दर्ज करें:</strong> अपने राज्य का चयन करें, अपनी निकाय/प्लांट का नाम लिखें और मोबाइल नंबर दर्ज करें।</li>
-                <li style={{ marginBottom: '6px' }}><strong>कचरा क्षमता मोड चुनें:</strong> जनसंख्या आधारित (450 ग्राम/दिन) या वास्तविक तौल का TPD दर्ज करें।</li>
-                <li style={{ marginBottom: '6px' }}><strong>स्रोत पृथक्करण दर (%):</strong> पृथक्कृत (Segregated) और मिश्रित (Mixed) कचरे का प्रतिशत सेट करें।</li>
-                <li style={{ marginBottom: '6px' }}><strong>प्रोसेसिंग फैसिलिटीज:</strong> अपनी सभी प्रोसेसिंग यूनिट्स (कम्पोस्ट, MRF, ट्रॉमेल) जोड़ें। MRF में कस्टम मटेरियल फ्रैक्शन जोड़ें और सुनिश्चित करें कि उनका कुल योग 100% हो। सुनिश्चित करें कि औसत प्रोसेसिंग (Average Processing TPD) का योग कुल गेट कचरे के बराबर हो। ट्रॉमेल प्लांट हमेशा मिश्रित कचरा लेगा।</li>
-                <li style={{ marginBottom: '6px' }}><strong>महीने चुनें:</strong> आवश्यकतानुसार महीने चुनें (हर 6ठा महीना बिल्कुल मुफ्त है)।</li>
-                <li style={{ marginBottom: '6px' }}><strong>डेटासेट जनरेट करें:</strong> पहले 5 दिनों का मुफ्त पूर्वावलोकन (Preview) देखें, फिर भुगतान पूरा करके पूरे महीने की Multi-Sheet Excel Workbook (.xlsx) डाउनलोड करें।</li>
+                <li style={{ marginBottom: '6px' }}><strong>सुविधा चुनें:</strong> निकाय (ULB), MRF, या मिश्रित कचरा प्लांट में से चुनें।</li>
+                <li style={{ marginBottom: '6px' }}><strong>विवरण दर्ज करें:</strong> राज्य, नाम, और मोबाइल नंबर भरें।</li>
+                <li style={{ marginBottom: '6px' }}><strong>क्षमता सेट करें:</strong> TPD या जनसंख्या दर्ज करें। एडवांस्ड सेटिंग से स्ट्रीम प्रतिशत को कस्टमाइज़ करें (कुल 100% होना चाहिए)।</li>
+                <li style={{ marginBottom: '6px' }}><strong>महीने चुनें:</strong> हर 6ठा महीना मुफ़्त है।</li>
+                <li style={{ marginBottom: '6px' }}><strong>डाउनलोड करें:</strong> 5-दिन का प्रीव्यू देखें, फिर सुरक्षित भुगतान करके पूरी एक्सेल फ़ाइल डाउनलोड करें।</li>
               </ol>
             </div>
           ) : (
@@ -628,12 +415,11 @@ export default function App() {
                 How to generate your 30-day audit-ready SWM Excel logbooks step-by-step:
               </p>
               <ol style={{ margin: 0, paddingLeft: '20px' }}>
-                <li style={{ marginBottom: '6px' }}><strong>Enter Basic Details:</strong> Select your State, type your ULB/Facility Name, and provide a mobile number.</li>
-                <li style={{ marginBottom: '6px' }}><strong>Choose Waste Calculation Mode:</strong> Population-based (450 g/person/day) or Actual weighed TPD.</li>
-                <li style={{ marginBottom: '6px' }}><strong>Set Segregation Rate (%):</strong> Balance Segregated waste vs Mixed unsegregated waste.</li>
-                <li style={{ marginBottom: '6px' }}><strong>Configure Processing Assets:</strong> Add processing facilities. Customize sub-fractions for MRF units ensuring they equal 100%. Any Mixed Waste Trommel will auto-process your mixed stream. Ensure Average Processing exactly equals Total Gate Generation.</li>
-                <li style={{ marginBottom: '6px' }}><strong>Select Duration:</strong> Click month buttons to choose duration (every 6th month is free).</li>
-                <li style={{ marginBottom: '6px' }}><strong>Preview & Export:</strong> Review the first 5 days for free, then complete payment to download the full Multi-Sheet Excel workbook (`.xlsx`).</li>
+                <li style={{ marginBottom: '6px' }}><strong>Select Facility:</strong> Choose between ULB Collection, MRF, or Mixed Waste Plant.</li>
+                <li style={{ marginBottom: '6px' }}><strong>Enter Details:</strong> Provide State, Name, and Mobile Number.</li>
+                <li style={{ marginBottom: '6px' }}><strong>Set Capacity:</strong> Enter TPD or population. Use Advanced Settings to customize fraction percentages (must equal 100%).</li>
+                <li style={{ marginBottom: '6px' }}><strong>Choose Months:</strong> Select months (every 6th month is free).</li>
+                <li style={{ marginBottom: '6px' }}><strong>Download:</strong> Preview the first 5 days, then pay to download the full Excel workbook.</li>
               </ol>
             </div>
           )}
@@ -642,215 +428,149 @@ export default function App() {
         {/* MAIN FORM */}
         <form onSubmit={handleGenerate} style={{ background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #cbd5e1', marginBottom: '20px' }}>
           
+          <div style={{ marginBottom: '14px', display: 'flex', gap: '15px', alignItems: 'center', fontSize: '14px', flexWrap: 'wrap', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+            <strong>{lang === 'hi' ? 'सिंगल-फैसिलिटी चुनें:' : 'Select Standalone Logbook:'}</strong>
+            <label style={{ cursor: 'pointer' }}><input type="radio" value="ULB" checked={facilityType === 'ULB'} onChange={() => { setFacilityType('ULB'); setGeneratedMonthlyData(null); }} /> {lang === 'hi' ? 'निकाय (ULB) (₹100)' : 'ULB Collection (₹100/mo)'}</label>
+            <label style={{ cursor: 'pointer' }}><input type="radio" value="MRF" checked={facilityType === 'MRF'} onChange={() => { setFacilityType('MRF'); setGeneratedMonthlyData(null); }} /> {lang === 'hi' ? 'एमआरएफ (MRF) (₹150)' : 'MRF Centre (₹150/mo)'}</label>
+            <label style={{ cursor: 'pointer' }}><input type="radio" value="MIXED_PLANT" checked={facilityType === 'MIXED_PLANT'} onChange={() => { setFacilityType('MIXED_PLANT'); setGeneratedMonthlyData(null); }} /> {lang === 'hi' ? 'मिश्रित कचरा (₹200)' : 'Mixed Waste Plant (₹200/mo)'}</label>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', marginBottom: '14px' }}>
             <div>
-              <label style={{ fontSize: '12px', fontWeight: '600' }}>Select State</label>
+              <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'राज्य चुनें' : 'Select State'}</label>
               <select style={inputStyle} value={selectedState} onChange={(e) => setSelectedState(e.target.value)}>
                 {STATES_LIST.map((s) => <option key={s.nameEn} value={s.nameEn}>{lang === 'hi' ? s.nameHi : s.nameEn}</option>)}
               </select>
             </div>
             <div>
-              <label style={{ fontSize: '12px', fontWeight: '600' }}>ULB / Facility Name</label>
+              <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'निकाय / प्लांट का नाम' : 'Facility Name'}</label>
               <input style={inputStyle} type="text" required value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div>
-              <label style={{ fontSize: '12px', fontWeight: '600' }}>Mobile Number</label>
-              <input style={inputStyle} type="tel" maxLength={10} required value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} />
-            </div>
-          </div>
-
-          {/* GATE INTAKE & SEGREGATION BASIS */}
-          <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0', marginBottom: '14px' }}>
-            <strong style={{ fontSize: '13px', display: 'block', marginBottom: '10px' }}>1. Master Gate Refuse Estimation & Segregation</strong>
-            
-            <div style={{ display: 'flex', gap: '15px', marginBottom: '10px', fontSize: '13px' }}>
-              <label style={{ cursor: 'pointer' }}><input type="radio" checked={ulbCalculationMode === 'population'} onChange={() => setUlbCalculationMode('population')} /> {lang === 'hi' ? 'जनसंख्या आधारित' : 'Population Based'}</label>
-              <label style={{ cursor: 'pointer' }}><input type="radio" checked={ulbCalculationMode === 'actual'} onChange={() => setUlbCalculationMode('actual')} /> {lang === 'hi' ? 'वास्तविक TPD' : 'Actual Observed TPD'}</label>
+              <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'मोबाइल नंबर' : 'Mobile Number'}</label>
+              <input style={inputStyle} type="tel" maxLength={10} placeholder="9876543210" required value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))} />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', alignItems: 'center' }}>
-              {ulbCalculationMode === 'population' ? (
-                <>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: '600' }}>Population (Approx.)</label>
-                    <input style={inputStyle} type="number" value={population} onChange={(e) => setPopulation(e.target.value)} />
+            {facilityType === 'ULB' && (
+              <>
+                <div style={{ gridColumn: '1 / -1', background: '#f1f5f9', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <strong style={{ fontSize: '13px' }}>{lang === 'hi' ? 'कचरा उत्पादन का आधार' : 'Estimation Basis'}</strong>
+                  <div style={{ display: 'flex', gap: '15px', marginTop: '6px', fontSize: '13px' }}>
+                    <label style={{ cursor: 'pointer' }}><input type="radio" checked={ulbCalculationMode === 'population'} onChange={() => setUlbCalculationMode('population')} /> {lang === 'hi' ? 'जनसंख्या आधारित' : 'Population Based'}</label>
+                    <label style={{ cursor: 'pointer' }}><input type="radio" checked={ulbCalculationMode === 'actual'} onChange={() => setUlbCalculationMode('actual')} /> {lang === 'hi' ? 'वास्तविक TPD' : 'Actual TPD'}</label>
                   </div>
-                  <div>
-                    <label style={{ fontSize: '12px', fontWeight: '600' }}>Per Capita Rate</label>
-                    <select style={inputStyle} value={perCapitaOption} onChange={(e) => setPerCapitaOption(e.target.value)}>
-                      <option value="300">300 g/day</option>
-                      <option value="450">450 g/day</option>
-                      <option value="500">500 g/day</option>
-                    </select>
-                  </div>
-                </>
-              ) : (
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600' }}>Actual Waste Generation (TPD)</label>
-                  <input style={inputStyle} type="number" step="0.1" value={actualAverageTpd} onChange={(e) => setActualAverageTpd(e.target.value)} />
                 </div>
-              )}
 
-              <div>
-                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#0f172a' }}>Source Segregation Rate: {segregationRate}%</label>
-                <input type="range" min="0" max="100" step="5" value={segregationRate} onChange={(e) => setSegregationRate(Number(e.target.value))} style={{ width: '100%', marginTop: '6px' }} />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '10px', marginTop: '12px', flexWrap: 'wrap' }}>
-               <div style={{ flex: 1, minWidth: '150px', background: '#ecfdf5', padding: '8px 12px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
-                 <span style={{ fontSize: '11px', color: '#065f46', fontWeight: 'bold', display: 'block' }}>Total Gate Refuse</span>
-                 <span style={{ fontSize: '16px', color: '#047857', fontWeight: '900' }}>{targetTotalTpd} TPD</span>
-               </div>
-               <div style={{ flex: 1, minWidth: '150px', background: '#f0f9ff', padding: '8px 12px', borderRadius: '6px', border: '1px solid #bae6fd' }}>
-                 <span style={{ fontSize: '11px', color: '#0369a1', fontWeight: 'bold', display: 'block' }}>Target Segregated ({segregationRate}%)</span>
-                 <span style={{ fontSize: '16px', color: '#0284c7', fontWeight: '900' }}>{targetSegregatedTpd} TPD</span>
-               </div>
-               <div style={{ flex: 1, minWidth: '150px', background: '#fffbeb', padding: '8px 12px', borderRadius: '6px', border: '1px solid #fde68a' }}>
-                 <span style={{ fontSize: '11px', color: '#92400e', fontWeight: 'bold', display: 'block' }}>Target Mixed ({100 - segregationRate}%)</span>
-                 <span style={{ fontSize: '16px', color: '#d97706', fontWeight: '900' }}>{targetMixedTpd} TPD</span>
-               </div>
-            </div>
-          </div>
-
-          {/* DYNAMIC MULTI-ASSET FACILITY CONFIGURATOR */}
-          <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '6px', border: '1px solid #cbd5e1', marginBottom: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
-              <div>
-                <strong style={{ fontSize: '13px', color: '#0f172a' }}>2. Processing Facilities & Capacity Allocation</strong>
-                <span style={{ display: 'block', fontSize: '11px', color: '#64748b' }}>Trommels will auto-route the Mixed Stream. Other facilities route Segregated Streams.</span>
-              </div>
-
-              {/* DUAL-STREAM & MRF Mass Balance Indicator Badge */}
-              <div style={{ 
-                padding: '6px 12px', borderRadius: '6px', fontWeight: 'bold', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
-                background: isFullyValidated ? '#ecfdf5' : '#fef2f2',
-                color: isFullyValidated ? '#047857' : '#dc2626',
-                border: `1px solid ${isFullyValidated ? '#a7f3d0' : '#fca5a5'}`
-              }}>
-                {isFullyValidated ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
-                {validationMsg}
-              </div>
-            </div>
-
-            {/* COLUMN HEADERS */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr auto', gap: '8px', marginBottom: '6px', fontSize: '11px', fontWeight: 'bold', color: '#475569', paddingRight: '10px' }}>
-              <span>Facility Name</span>
-              <span>Processing Stream Type</span>
-              <span>Design Capacity (TPD)</span>
-              <span>Avg Processing (TPD)</span>
-              <span></span>
-            </div>
-
-            {/* DYNAMIC ROWS & MRF FRACTIONS */}
-            {facilities.map((f) => {
-              const isTrommel = f.type === 'mixed_trommel';
-              const inputColor = isTrommel ? (isMixedBalanced ? '#cbd5e1' : '#f87171') : (isSegBalanced ? '#cbd5e1' : '#f87171');
-              
-              return (
-                <div key={f.id} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px dashed #cbd5e1' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr auto', gap: '8px', alignItems: 'center' }}>
-                    <input type="text" value={f.name} onChange={(e) => updateFacility(f.id, 'name', e.target.value)} style={{ ...inputStyle, marginTop: 0 }} placeholder="Unit Name" />
-                    
-                    <select value={f.type} onChange={(e) => updateFacility(f.id, 'type', e.target.value)} style={{ ...inputStyle, marginTop: 0 }}>
-                      <option value="wet_compost">🌱 Wet Waste Composting Pad</option>
-                      <option value="vermicompost">🪱 Vermicomposting Pit</option>
-                      <option value="dry_mrf">📦 Dry Material Recovery (MRF)</option>
-                      <option value="biomethanation">⚡ Bio-methanation / Bio-CNG</option>
-                      <option value="hazardous_sanitary">☣️ Domestic Hazardous & Sanitary</option>
-                      <option value="mixed_trommel">⚙️ Mixed Waste Trommel Line</option>
-                    </select>
-
-                    <input type="number" step="0.1" value={f.designCapacity} onChange={(e) => updateFacility(f.id, 'designCapacity', Number(e.target.value))} style={{ ...inputStyle, marginTop: 0 }} placeholder="Cap TPD" />
-                    <input type="number" step="0.1" value={f.avgProcessing} onChange={(e) => updateFacility(f.id, 'avgProcessing', Number(e.target.value))} style={{ ...inputStyle, marginTop: 0, fontWeight: 'bold', borderColor: inputColor }} placeholder="Avg TPD" />
-
-                    {facilities.length > 1 && (
-                      <button type="button" onClick={() => removeFacility(f.id)} style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer' }}><Trash2 size={16} /></button>
-                    )}
-                  </div>
-
-                  {/* NESTED MRF FRACTIONS EDITOR WITH 100% VALIDATION */}
-                  {f.type === 'dry_mrf' && (
-                    <div style={{ marginTop: '10px', marginLeft: '10px', background: '#f1f5f9', padding: '10px', borderRadius: '6px', borderLeft: '3px solid #0ea5e9' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#0369a1' }}>
-                          Customize MRF Fractions (%)
-                          {(() => {
-                            const pct = (f.mrfFractions || []).reduce((s, fr) => s + Number(fr.percentage || 0), 0);
-                            if (pct !== 100) return <span style={{ color: '#dc2626', marginLeft: '6px' }}>(⚠️ Total: {pct}% - Must be 100%)</span>;
-                            return <span style={{ color: '#15803d', marginLeft: '6px' }}>(✓ 100%)</span>;
-                          })()}
-                        </span>
-                        <button type="button" onClick={() => addMrfFraction(f.id)} style={{ background: 'none', border: 'none', color: '#0284c7', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '2px' }}>
-                          <Plus size={12} /> Add Fraction
-                        </button>
-                      </div>
-                      
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                        {(f.mrfFractions || []).map(frac => (
-                          <div key={frac.id} style={{ display: 'flex', alignItems: 'center', background: '#fff', border: '1px solid #cbd5e1', borderRadius: '4px', overflow: 'hidden' }}>
-                            <input type="text" value={frac.name} onChange={(e) => updateMrfFraction(f.id, frac.id, 'name', e.target.value)} style={{ border: 'none', padding: '6px 8px', fontSize: '11px', width: '120px', outline: 'none' }} placeholder="Fraction Name" />
-                            <input type="number" value={frac.percentage} onChange={(e) => updateMrfFraction(f.id, frac.id, 'percentage', Number(e.target.value))} style={{ border: 'none', borderLeft: '1px solid #cbd5e1', padding: '6px 8px', fontSize: '11px', width: '50px', outline: 'none', background: '#f8fafc' }} placeholder="%" />
-                            <button type="button" onClick={() => removeMrfFraction(f.id, frac.id)} style={{ border: 'none', background: '#fee2e2', color: '#dc2626', padding: '6px 8px', cursor: 'pointer' }}><Trash2 size={12} /></button>
-                          </div>
-                        ))}
-                      </div>
+                {ulbCalculationMode === 'population' ? (
+                  <>
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'जनसंख्या' : 'Population'}</label>
+                      <input style={inputStyle} type="number" value={population} onChange={(e) => setPopulation(e.target.value)} />
                     </div>
-                  )}
+                    <div>
+                      <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'प्रति व्यक्ति दर' : 'Per Capita Rate'}</label>
+                      <select style={inputStyle} value={perCapitaOption} onChange={(e) => setPerCapitaOption(e.target.value)}>
+                        <option value="300">300 g/day</option>
+                        <option value="450">450 g/day</option>
+                        <option value="500">500 g/day</option>
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', background: '#ecfdf5', padding: '10px', borderRadius: '6px', border: '1px solid #a7f3d0' }}>
+                      <span style={{ fontSize: '11px', color: '#065f46', fontWeight: 'bold' }}>{lang === 'hi' ? 'अनुमानित कचरा' : 'Calculated Waste'}</span>
+                      <span style={{ fontSize: '18px', color: '#047857', fontWeight: '900' }}>{calculatedTpdDisplay} TPD</span>
+                    </div>
+                  </>
+                ) : (
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'वास्तविक TPD' : 'Observed TPD'}</label>
+                    <input style={inputStyle} type="number" value={actualAverageTpd} onChange={(e) => setActualAverageTpd(e.target.value)} />
+                  </div>
+                )}
+              </>
+            )}
+
+            {(facilityType === 'MRF' || facilityType === 'MIXED_PLANT') && (
+              <>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'दैनिक आवक (TPD)' : 'Daily Intake (TPD)'}</label>
+                  <input style={inputStyle} type="number" value={mrfDailyDryTons} onChange={(e) => setMrfDailyDryTons(e.target.value)} />
                 </div>
-              );
-            })}
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-              <button type="button" onClick={addFacility} style={{ padding: '6px 12px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Plus size={14} /> Add Processing Facility
-              </button>
-
-              <button type="button" onClick={autoBalanceAllocation} style={{ padding: '6px 12px', background: '#0284c7', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Zap size={14} /> Auto-Balance Streams
-              </button>
-            </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '600' }}>{lang === 'hi' ? 'प्लांट क्षमता (TPD)' : 'Capacity (TPD)'}</label>
+                  <input style={inputStyle} type="number" value={mrfMaxCapacityTons} onChange={(e) => setMrfMaxCapacityTons(e.target.value)} />
+                </div>
+              </>
+            )}
           </div>
 
-          {/* MONTH SELECTOR GRID */}
+          {(facilityType === 'MRF' || facilityType === 'MIXED_PLANT') && (
+            <div style={{ marginTop: '10px', background: isAdvancedMode ? '#fffbeb' : '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #cbd5e1', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold', fontSize: '13px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={isAdvancedMode} onChange={(e) => setIsAdvancedMode(e.target.checked)} />
+                  {lang === 'hi' ? 'एडवांस्ड स्ट्रीम सेटिंग चालू करें' : 'Enable Advanced Stream Configuration'}
+                </label>
+                
+                {isAdvancedMode && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 'bold', color: isValidTotal ? '#166534' : '#dc2626', background: isValidTotal ? '#dcfce7' : '#fee2e2', padding: '4px 10px', borderRadius: '4px', border: `1px solid ${isValidTotal ? '#86efac' : '#fca5a5'}` }}>
+                      Total: {totalPercentage}%
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {isAdvancedMode && (
+                <>
+                  <div style={{ marginTop: '14px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '8px' }}>
+                    {currentStreamConfig.map(s => (
+                      <div key={s.id} style={{ background: '#fff', padding: '8px', border: '1px solid #e2e8f0', borderRadius: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          {s.id.startsWith('custom_') ? (
+                            <input type="text" value={s.label} onChange={(e) => updateStreamConfig(s.id, 'label', e.target.value)} style={{ fontSize: '11px', fontWeight: 'bold', width: '100%', padding: '4px' }} placeholder="Custom Name" />
+                          ) : (
+                            <span style={{ fontSize: '11px', fontWeight: 'bold' }}>{s.label}</span>
+                          )}
+                          {s.id.startsWith('custom_') && (
+                            <button type="button" onClick={() => removeCustomStream(s.id)} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}><Trash2 size={15} /></button>
+                          )}
+                        </div>
+                        <input type="number" value={s.userWeight} onChange={(e) => updateStreamConfig(s.id, 'userWeight', e.target.value)} style={{ ...inputStyle, marginTop: '4px' }} />
+                      </div>
+                    ))}
+                  </div>
+                  <button type="button" onClick={addCustomStream} style={{ marginTop: '10px', padding: '6px 12px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Plus size={14} /> Add Custom Fraction
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           <div style={{ marginBottom: '14px' }}>
             <strong style={{ fontSize: '13px' }}>{lang === 'hi' ? `महीने चुनें (${pricing.count} चयनित — ₹${pricing.total}):` : `Select Months (${pricing.count} Selected — ₹${pricing.total}):`}</strong>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(75px, 1fr))', gap: '6px', marginTop: '6px' }}>
               {MONTHS.map((m) => (
-                <button key={m.id} type="button" onClick={() => toggleMonth(m.id)} style={{ padding: '6px 2px', borderRadius: '4px', border: selectedMonths.includes(m.id) ? '2px solid #047857' : '1px solid #cbd5e1', background: selectedMonths.includes(m.id) ? '#ecfdf5' : '#fff', fontWeight: selectedMonths.includes(m.id) ? 'bold' : 'normal', cursor: 'pointer', fontSize: '12px' }}>
+                <button key={m.id} type="button" onClick={() => toggleMonth(m.id)} style={{ padding: '6px 2px', borderRadius: '4px', border: selectedMonths.includes(m.id) ? '2px solid #0f172a' : '1px solid #cbd5e1', background: selectedMonths.includes(m.id) ? '#f1f5f9' : '#fff', fontWeight: selectedMonths.includes(m.id) ? 'bold' : 'normal', cursor: 'pointer', fontSize: '12px' }}>
                   {lang === 'hi' ? m.shortHi : m.shortEn}
                 </button>
               ))}
             </div>
           </div>
 
-          <button type="submit" style={{ width: '100%', padding: '14px', background: isFullyValidated ? '#047857' : '#94a3b8', color: '#fff', border: 'none', borderRadius: '6px', cursor: isFullyValidated ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: '15px' }}>
-            Generate Master Dataset (₹{pricing.total}) →
+          <button type="submit" disabled={generateDisabled} style={{ width: '100%', padding: '14px', background: generateDisabled ? '#94a3b8' : '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', cursor: generateDisabled ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px' }}>
+            {lang === 'hi' ? `लॉग-बुक जनरेट करें (₹${pricing.total}) →` : `Generate Logbook Dataset (₹${pricing.total}) →`}
           </button>
         </form>
 
-        {/* PREVIEW CONTAINER WITH ASSET TABS */}
+        {/* PREVIEW CONTAINER */}
         {generatedMonthlyData && (
           <div ref={resultsRef} style={{ background: '#fff', padding: '15px', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
             
-            {/* MONTH TABS */}
             <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', overflowX: 'auto', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
               {selectedMonths.map(mId => (
-                <button key={mId} type="button" onClick={() => setActiveTabMonth(mId)} style={{ padding: '6px 12px', borderRadius: '4px', border: activeTabMonth === mId ? '2px solid #047857' : '1px solid #cbd5e1', background: activeTabMonth === mId ? '#047857' : '#f8fafc', color: activeTabMonth === mId ? '#fff' : '#334155', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>
+                <button key={mId} type="button" onClick={() => setActiveTabMonth(mId)} style={{ padding: '6px 12px', borderRadius: '4px', border: activeTabMonth === mId ? '2px solid #0f172a' : '1px solid #cbd5e1', background: activeTabMonth === mId ? '#0f172a' : '#f8fafc', color: activeTabMonth === mId ? '#fff' : '#334155', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>
                   {MONTHS.find(m => m.id === mId)?.fullEn}
-                </button>
-              ))}
-            </div>
-
-            {/* ASSET SELECTOR SWITCHER */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap', background: '#f1f5f9', padding: '8px', borderRadius: '6px' }}>
-              <button type="button" onClick={() => setActiveAssetView('gate')} style={{ padding: '6px 10px', borderRadius: '4px', border: 'none', background: activeAssetView === 'gate' ? '#0f172a' : 'transparent', color: activeAssetView === 'gate' ? '#fff' : '#475569', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>
-                🏢 Master Gate Intake Sheet
-              </button>
-
-              {facilities.map(f => (
-                <button key={f.id} type="button" onClick={() => setActiveAssetView(f.id)} style={{ padding: '6px 10px', borderRadius: '4px', border: 'none', background: activeAssetView === f.id ? '#047857' : 'transparent', color: activeAssetView === f.id ? '#fff' : '#047857', fontWeight: 'bold', cursor: 'pointer', fontSize: '12px' }}>
-                  ⚙️ {f.name}
                 </button>
               ))}
             </div>
@@ -858,7 +578,7 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <strong>{name} — Sheet Preview</strong>
               {isPaid ? (
-                <button onClick={downloadExcel} style={{ padding: '6px 12px', background: '#047857', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <button onClick={downloadExcel} style={{ padding: '6px 12px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <FileSpreadsheet size={14} /> Download Excel Workbook
                 </button>
               ) : (
@@ -866,147 +586,48 @@ export default function App() {
               )}
             </div>
 
-            {/* PREVIEW TABLE */}
             <div onContextMenu={(e) => !isPaid && e.preventDefault()} style={{ overflowX: 'auto', border: '1px solid #cbd5e1', borderRadius: '4px', userSelect: isPaid ? 'text' : 'none' }}>
               <table cellPadding="8" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '600px' }}>
                 <thead>
-                  {activeAssetView === 'gate' && (
+                  {facilityType === 'ULB' ? (
                     <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
                       <th>Date</th><th>Day</th>
-                      <th style={{ textAlign: 'right' }}>Total Gate Refuse</th>
-                      <th style={{ textAlign: 'right' }}>Segregated Stream</th>
-                      <th style={{ textAlign: 'right' }}>Mixed Stream</th>
-                      {facilities.map(f => <th key={f.id} style={{ textAlign: 'right' }}>{f.name} (Tons)</th>)}
+                      <th style={{ textAlign: 'right' }}>Total Collection (Tons)</th>
+                      <th style={{ textAlign: 'right' }}>Domestic MSW (Tons)</th>
+                      <th style={{ textAlign: 'right' }}>Commercial (Tons)</th>
+                      <th style={{ textAlign: 'right' }}>C&D Waste (Tons)</th>
+                      <th style={{ textAlign: 'right' }}>Drain Silt (Tons)</th>
+                    </tr>
+                  ) : (
+                    <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
+                      <th>Date</th><th>Day</th>
+                      <th style={{ textAlign: 'right' }}>Intake (Tons)</th>
+                      {currentStreamConfig.map(frac => (
+                        <th key={frac.id} style={{ textAlign: 'right' }}>{frac.label} ({frac.userWeight}%)</th>
+                      ))}
                     </tr>
                   )}
-
-                  {facilities.some(f => f.id === activeAssetView) && (() => {
-                    const selectedF = facilities.find(f => f.id === activeAssetView);
-                    if (selectedF.type === 'wet_compost' || selectedF.type === 'vermicompost') {
-                      return (
-                        <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
-                          <th>Date</th><th>Day</th>
-                          <th style={{ textAlign: 'right' }}>Organic Input (Tons)</th>
-                          <th style={{ textAlign: 'right' }}>Bio-Enzyme (L)</th>
-                          <th>Active Pile</th>
-                          <th style={{ textAlign: 'right' }}>Compost Yield (Tons)</th>
-                          <th style={{ textAlign: 'right' }}>Inert Rejects (Tons)</th>
-                        </tr>
-                      );
-                    } else if (selectedF.type === 'dry_mrf') {
-                      const fractions = selectedF.mrfFractions || [];
-                      return (
-                        <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
-                          <th>Date</th><th>Day</th>
-                          <th style={{ textAlign: 'right' }}>Dry Intake (Tons)</th>
-                          {fractions.map(frac => (
-                            <th key={frac.id} style={{ textAlign: 'right' }}>{frac.name} ({frac.percentage}%)</th>
-                          ))}
-                        </tr>
-                      );
-                    } else if (selectedF.type === 'mixed_trommel') {
-                      return (
-                        <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
-                          <th>Date</th><th>Day</th>
-                          <th style={{ textAlign: 'right' }}>Mixed Refuse (Tons)</th>
-                          <th style={{ textAlign: 'right' }}>Fine Organics (45%)</th>
-                          <th style={{ textAlign: 'right' }}>Coarse RDF (35%)</th>
-                          <th style={{ textAlign: 'right' }}>Heavy Inerts (20%)</th>
-                        </tr>
-                      );
-                    } else if (selectedF.type === 'biomethanation') {
-                      return (
-                        <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
-                          <th>Date</th><th>Day</th>
-                          <th style={{ textAlign: 'right' }}>Organic Feed (Tons)</th>
-                          <th style={{ textAlign: 'right' }}>Pressure (bar)</th>
-                          <th style={{ textAlign: 'right' }}>Biogas (m³)</th>
-                          <th style={{ textAlign: 'right' }}>Bio-Slurry (Tons)</th>
-                        </tr>
-                      );
-                    } else {
-                      return (
-                        <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', textAlign: 'left' }}>
-                          <th>Date</th><th>Day</th>
-                          <th style={{ textAlign: 'right' }}>Intake (Tons)</th>
-                          <th style={{ textAlign: 'right' }}>Stored (Tons)</th>
-                          <th>Manifest ID</th>
-                          <th style={{ textAlign: 'right' }}>TSDF Transfer (Tons)</th>
-                        </tr>
-                      );
-                    }
-                  })()}
                 </thead>
-                
                 <tbody>
                   {visibleRows.map((r, idx) => (
                     <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
                       <td>{r.date}</td><td>{r.dayName}</td>
-
-                      {activeAssetView === 'gate' && (
+                      <td style={{ textAlign: 'right' }}><strong>{formatVal(r.intake)}</strong></td>
+                      
+                      {facilityType === 'ULB' ? (
                         <>
-                          <td style={{ textAlign: 'right' }}><strong>{formatVal(r.totalIntake)}</strong></td>
-                          <td style={{ textAlign: 'right', color: '#0284c7' }}>{formatVal(r.dailySegregated)}</td>
-                          <td style={{ textAlign: 'right', color: '#d97706' }}>{formatVal(r.dailyMixed)}</td>
-                          {facilities.map(f => (
-                            <td key={f.id} style={{ textAlign: 'right' }}>{formatVal(r.facilityBreakdown[f.id]?.intake)}</td>
+                          <td style={{ textAlign: 'right' }}>{formatVal(r.domestic)}</td>
+                          <td style={{ textAlign: 'right' }}>{formatVal(r.commercial)}</td>
+                          <td style={{ textAlign: 'right' }}>{formatVal(r.cnd)}</td>
+                          <td style={{ textAlign: 'right' }}>{formatVal(r.drain)}</td>
+                        </>
+                      ) : (
+                        <>
+                          {currentStreamConfig.map(frac => (
+                            <td key={frac.id} style={{ textAlign: 'right' }}>{formatVal(r.fractions[frac.id])}</td>
                           ))}
                         </>
                       )}
-
-                      {facilities.some(f => f.id === activeAssetView) && (() => {
-                        const activeF = facilities.find(f => f.id === activeAssetView);
-                        const rowData = r.facilityBreakdown[activeAssetView];
-
-                        if (activeF.type === 'wet_compost' || activeF.type === 'vermicompost') {
-                          return (
-                            <>
-                              <td style={{ textAlign: 'right' }}><strong>{formatVal(rowData?.intake)}</strong></td>
-                              <td style={{ textAlign: 'right' }}>{rowData?.enzyme}</td>
-                              <td>{rowData?.activePileNo}</td>
-                              <td style={{ textAlign: 'right' }}>{formatVal(rowData?.compostYield)}</td>
-                              <td style={{ textAlign: 'right' }}>{formatVal(rowData?.rejects)}</td>
-                            </>
-                          );
-                        } else if (activeF.type === 'dry_mrf') {
-                          const fractions = activeF.mrfFractions || [];
-                          return (
-                            <>
-                              <td style={{ textAlign: 'right' }}><strong>{formatVal(rowData?.intake)}</strong></td>
-                              {fractions.map(frac => (
-                                <td key={frac.id} style={{ textAlign: 'right' }}>{formatVal(rowData?.fractions?.[frac.id])}</td>
-                              ))}
-                            </>
-                          );
-                        } else if (activeF.type === 'mixed_trommel') {
-                          return (
-                            <>
-                              <td style={{ textAlign: 'right' }}><strong>{formatVal(rowData?.intake)}</strong></td>
-                              <td style={{ textAlign: 'right' }}>{formatVal(rowData?.organicFines)}</td>
-                              <td style={{ textAlign: 'right' }}>{formatVal(rowData?.coarseRdf)}</td>
-                              <td style={{ textAlign: 'right' }}>{formatVal(rowData?.heavyInerts)}</td>
-                            </>
-                          );
-                        } else if (activeF.type === 'biomethanation') {
-                          return (
-                            <>
-                              <td style={{ textAlign: 'right' }}><strong>{formatVal(rowData?.intake)}</strong></td>
-                              <td style={{ textAlign: 'right' }}>{rowData?.digesterPressure}</td>
-                              <td style={{ textAlign: 'right' }}>{rowData?.biogasGenerated}</td>
-                              <td style={{ textAlign: 'right' }}>{formatVal(rowData?.digestate)}</td>
-                            </>
-                          );
-                        } else {
-                          return (
-                            <>
-                              <td style={{ textAlign: 'right' }}><strong>{formatVal(rowData?.intake)}</strong></td>
-                              <td style={{ textAlign: 'right' }}>{formatVal(rowData?.safeStorage)}</td>
-                              <td>{rowData?.manifestNo}</td>
-                              <td style={{ textAlign: 'right' }}>{formatVal(rowData?.dispatchedTsdf)}</td>
-                            </>
-                          );
-                        }
-                      })()}
                     </tr>
                   ))}
                 </tbody>
@@ -1014,10 +635,10 @@ export default function App() {
             </div>
 
             {!isPaid && (
-              <div style={{ border: '2px dashed #047857', background: '#ecfdf5', padding: '15px', textAlign: 'center', marginTop: '12px', borderRadius: '6px' }}>
-                <Lock style={{ color: '#047857' }} size={18} />
-                <h4 style={{ margin: '4px 0', color: '#065f46' }}>Preview Locked (Days 1–5 Only)</h4>
-                <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 20px', background: '#047857', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginTop: '8px' }}>
+              <div style={{ border: '2px dashed #0f172a', background: '#f1f5f9', padding: '15px', textAlign: 'center', marginTop: '12px', borderRadius: '6px' }}>
+                <Lock style={{ color: '#0f172a' }} size={18} />
+                <h4 style={{ margin: '4px 0', color: '#334155' }}>Preview Locked (Days 1–5 Only)</h4>
+                <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 20px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginTop: '8px' }}>
                   {isProcessing ? 'Connecting...' : `Pay ₹${pricing.total} & Download File`}
                 </button>
               </div>
@@ -1051,7 +672,7 @@ export default function App() {
               {activePolicyModal === 'terms' && (
                 <div>
                   <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>Terms & Conditions</h2>
-                  <p style={{ fontSize: '12px' }}>This tool provides engineered multi-asset estimations for solid waste management facilities.</p>
+                  <p style={{ fontSize: '12px' }}>This tool provides engineered single-asset estimations for solid waste management facilities.</p>
                 </div>
               )}
               {activePolicyModal === 'refunds' && (
@@ -1064,7 +685,9 @@ export default function App() {
                 <div>
                   <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>Services & Pricing (INR)</h2>
                   <ul style={{ fontSize: '12px', lineHeight: '1.8' }}>
-                    <li>Integrated 3-in-1 Master Suite: ₹500 / Month (Includes Mass Balance Gate & Dynamic Processing Tabs)</li>
+                    <li>ULB Collection Dataset: ₹100 / Month</li>
+                    <li>MRF Processing Dataset: ₹150 / Month</li>
+                    <li>Mixed Waste Processing Dataset: ₹200 / Month</li>
                   </ul>
                 </div>
               )}
