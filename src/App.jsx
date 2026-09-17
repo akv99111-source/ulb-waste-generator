@@ -392,9 +392,9 @@ export default function App() {
               {lang === 'hi' ? 'एक ही बार में गेट कलेक्शन (ULB) से लेकर पूरी प्लांट प्रोसेसिंग (MRF, कम्पोस्ट) तक के सभी डेटासेट जनरेट करें।' : 'Generate fully connected, multi-sheet logs from initial ULB gate collection to complete plant-based processing (MRF, Compost, etc.) in one go.'}
             </p>
           </div>
-          <a href="https://all-in-one-swm-logbook.vercel.app/" style={{ textDecoration: 'none', padding: '8px 14px', background: '#166534', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
-            <Zap size={14} /> Open 3-in-1 App
-          </a>
+         <a href="https://ulb-waste-generator.vercel.app/" style={{ textDecoration: 'none', padding: '8px 14px', background: '#047857', color: '#fff', borderRadius: '6px', fontSize: '12px', fontWeight: 'bold' }}>
+  Switch to 3-in-1 Master Suite →
+</a>
         </div>
 
         {/* BILINGUAL USER GUIDE CONTAINER */}
