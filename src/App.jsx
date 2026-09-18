@@ -256,61 +256,14 @@ export default function App() {
     setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
-  const handlePayment = async () => {
+  const handleStandalonePayment = () => {
     if (!phone || phone.length < 10) {
       alert(lang === 'hi' ? 'कृपया एक वैध 10-अंकों का मोबाइल नंबर दर्ज करें।' : 'Please enter a valid 10-digit mobile number.');
       return;
     }
-    setIsProcessing(true);
-
-    if (!window.Cashfree) {
-      await new Promise((res) => {
-        if (document.querySelector('script[src*="cashfree.com"]')) return res(true);
-        const s = document.createElement('script');
-        s.src = 'https://sdk.cashfree.com/js/v3/cashfree.js';
-        s.onload = () => res(true);
-        document.body.appendChild(s);
-      });
-    }
-
-    try {
-      const isProd = import.meta.env.VITE_CASHFREE_MODE === 'production';
-      const res = await fetch('/api/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: pricing.total, customerName: name, customerPhone: phone })
-      });
-
-      const rawText = await res.text();
-      let order;
-      try {
-        order = JSON.parse(rawText);
-      } catch (err) {
-        throw new Error(`Server returned non-JSON response. Check Vercel Logs. Response preview: ${rawText.substring(0, 50)}`);
-      }
-
-      if (!order.payment_session_id) throw new Error(order.message || 'Failed to initialize payment session.');
-
-      const cashfree = window.Cashfree({ mode: isProd ? 'production' : 'sandbox' });
-
-      cashfree.checkout({
-        paymentSessionId: order.payment_session_id,
-        redirectTarget: '_modal'
-      }).then((result) => {
-        if (result.error) {
-          alert('Payment Failed: ' + result.error.message);
-          setIsProcessing(false);
-        } else if (result.paymentDetails) {
-          setIsPaid(true);
-          setIsProcessing(false);
-          localStorage.setItem(getSessionKey(), JSON.stringify({ paid: true, timestamp: Date.now() }));
-          downloadExcel();
-        }
-      });
-    } catch (err) {
-      alert('Payment Error: ' + err.message);
-      setIsProcessing(false);
-    }
+    const amountToPay = pricing.total; 
+    const customerPhone = phone || '';
+    window.location.href = `https://ulb-waste-generator.vercel.app/?amount=${amountToPay}&phone=${customerPhone}&autoPay=true`;
   };
 
   const formatVal = (v) => displayUnit === 'kg' ? Math.round(Number(v || 0) * 1000) : Number(v || 0).toFixed(3);
@@ -650,7 +603,7 @@ export default function App() {
               <div style={{ border: '2px dashed #0f172a', background: '#f1f5f9', padding: '15px', textAlign: 'center', marginTop: '12px', borderRadius: '6px' }}>
                 <Lock style={{ color: '#0f172a' }} size={18} />
                 <h4 style={{ margin: '4px 0', color: '#334155' }}>Preview Locked (Days 1–5 Only)</h4>
-                <button onClick={handlePayment} disabled={isProcessing} style={{ padding: '10px 20px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginTop: '8px' }}>
+                <button onClick={handleStandalonePayment} disabled={isProcessing} style={{ padding: '10px 20px', background: '#0f172a', color: '#fff', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer', marginTop: '8px' }}>
                   {isProcessing ? 'Connecting...' : `Pay ₹${pricing.total} & Download File`}
                 </button>
               </div>
@@ -658,8 +611,7 @@ export default function App() {
           </div>
         )}
 
-      {/* ADD THIS RIGHT ABOVE YOUR <footer ...> */}
-        {/* SEO & ADSENSE CONTENT BLOCK - DO NOT REMOVE UNTIL APPROVED */}
+        {/* SEO & ADSENSE CONTENT BLOCK */}
         <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #cbd5e1', marginTop: '30px', color: '#334155', lineHeight: '1.6' }}>
           <h2 style={{ fontSize: '18px', color: '#0f172a', borderBottom: '2px solid #e2e8f0', paddingBottom: '8px' }}>About Solid Waste Management (SWM) Logbook Estimation</h2>
           
@@ -685,7 +637,6 @@ export default function App() {
             <li style={{ marginBottom: '8px' }}><strong>What is C&D Waste and Drain Silt?</strong> Construction and Demolition (C&D) waste and drain silt are heavy, non-combustible fractions that must be logged separately from standard domestic and commercial MSW to prevent mechanical damage to processing equipment like trommels.</li>
           </ul>
         </div>
-        {/* END OF SEO CONTENT BLOCK */}
         {/* COMPLIANCE FOOTER */}
         <footer style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #cbd5e1', textAlign: 'center', fontSize: '12px', color: '#64748b' }}>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap', marginBottom: '10px' }}>
