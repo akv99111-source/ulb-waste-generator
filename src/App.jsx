@@ -704,9 +704,9 @@ export default function App() {
               {activePolicyModal === 'contact' && (
                 <div>
                   <h2 style={{ fontSize: '18px', fontWeight: 'bold' }}>Contact Us</h2>
-                  <p style={{ fontSize: '13px' }}><strong>Organisation:</strong> Consilience Research Foundation (CRF)</p>
+                  <p style={{ fontSize: '13px' }}><strong>Organisation:</strong> Consilience Research Foundation | Web: www.consilienceresearch.in (CRF)</p>
                   <p style={{ fontSize: '13px' }}><strong>Address:</strong> Arjunganj, Lucknow, Uttar Pradesh, India</p>
-                  <p style={{ fontSize: '13px' }}><strong>Email:</strong> crginfomail@gmail.com</p>
+                  <p style={{ fontSize: '13px' }}><strong>Contact:</strong> crginfomail@gmail.com | admin@consilienceresearch.in | +91-8004458773 </p>
                 </div>
               )}
               {activePolicyModal === 'terms' && (
